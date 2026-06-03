@@ -3,8 +3,35 @@
 import { SIZE, CENTER, PREMIUM, LETTER_VALUES } from './constants.js';
 import { analyze } from './engine.js';
 import { rackValue } from './game.js';
+import { enableBoardZoom } from './zoom.js';
 
 const $ = (sel) => document.querySelector(sel);
+
+// Celebratory pop-ups shown when the player completes a word. 💖
+const PRAISES = [
+  'Sandra, you are amazing! 💖',
+  'Z-A-Z-A spells A-M-A-Z-I-N-G! 🌟',
+  'Zaza — the best maker of words ever! 📖✨',
+  'Brilliant play, my love! 😘',
+  'Sandra, you absolute genius! 🧠💫',
+  'Word wizard Zaza strikes again! 🪄',
+  'Unstoppable, Sandra! 🔥',
+  'Zaza makes Scrabble look easy! 😍',
+  "That's my clever girl! 💚",
+  'Sandra, simply spectacular! 🎉',
+  'Zaza = pure word magic! ✨',
+  'Incredible, Sandra! Do it again! 👏',
+  "You're glowing, Zaza! 🌈",
+  'Queen of the tiles — Sandra! 👑',
+  'Sandra, you wonderful human! 💕',
+  'Zaza for the win! 🏆',
+  'Smartest, loveliest Sandra! 💞',
+  "Oh Zaza, you've done it again! 🤩",
+  'Masterpiece, Sandra! 🎨',
+  'Z-A-Z-A, you are the best! 💖',
+  'Sandra, my Scrabble superstar! ⭐',
+  'Dazzling word, Zaza! 💎',
+];
 
 export class UI {
   constructor(game) {
@@ -17,11 +44,63 @@ export class UI {
     this.cacheEls();
     this.bindControls();
     this.buildBoard();
+    this.initZoom();
+    this.initPraise();
     this.render();
+  }
+
+  // ---- Praise pop-ups -----------------------------------------------------
+
+  initPraise() {
+    this.praiseEl = $('#praise');
+    this._lastPraise = -1;
+    this.praiseOn = (() => {
+      try { return localStorage.getItem('zaza_praise') !== 'off'; } catch { return true; }
+    })();
+    $('#praise-toggle').onclick = () => this.togglePraise();
+    this.updatePraiseButton();
+  }
+
+  updatePraiseButton() {
+    const b = $('#praise-toggle');
+    if (!b) return;
+    b.classList.toggle('off', !this.praiseOn);
+    b.textContent = this.praiseOn ? '💖' : '🤍';
+    b.title = this.praiseOn ? 'Praise pop-ups: ON' : 'Praise pop-ups: off';
+  }
+
+  togglePraise() {
+    this.praiseOn = !this.praiseOn;
+    try { localStorage.setItem('zaza_praise', this.praiseOn ? 'on' : 'off'); } catch {}
+    this.updatePraiseButton();
+    if (this.praiseOn) this.showPraise();
+    else this.praiseEl.classList.remove('show');
+  }
+
+  showPraise() {
+    if (!this.praiseOn || !this.praiseEl) return;
+    let idx;
+    do { idx = Math.floor(Math.random() * PRAISES.length); }
+    while (PRAISES.length > 1 && idx === this._lastPraise);
+    this._lastPraise = idx;
+    this.praiseEl.textContent = PRAISES[idx];
+    this.praiseEl.classList.remove('show');
+    void this.praiseEl.offsetWidth; // restart the animation
+    this.praiseEl.classList.add('show');
+    clearTimeout(this._praiseTimer);
+    this._praiseTimer = setTimeout(() => this.praiseEl.classList.remove('show'), 3600);
+  }
+
+  initZoom() {
+    this.zoom = enableBoardZoom(this.viewportEl, this.boardEl);
+    document.querySelector('#zoom-in').onclick = () => this.zoom.zoomIn();
+    document.querySelector('#zoom-out').onclick = () => this.zoom.zoomOut();
+    document.querySelector('#zoom-reset').onclick = () => this.zoom.reset();
   }
 
   cacheEls() {
     this.boardEl = $('#board');
+    this.viewportEl = $('#board-viewport');
     this.rackEl = $('#rack');
     this.msgEl = $('#message');
     this.logEl = $('#log');
@@ -48,9 +127,164 @@ export class UI {
       if (cell) this.onBoardCell(+cell.dataset.r, +cell.dataset.c);
     });
     this.rackEl.addEventListener('click', (e) => {
+      if (this._suppressRackClick) { this._suppressRackClick = false; return; }
       const tile = e.target.closest('.rack-tile');
       if (tile) this.onRackTile(+tile.dataset.i);
     });
+    this.rackEl.addEventListener('pointerdown', (e) => this.onRackPointerDown(e));
+    this._onDragMove = (e) => this.onDragMove(e);
+    this._onDragUp = (e) => this.onDragUp(e);
+  }
+
+  // ---- Drag and drop (rack -> board) -------------------------------------
+
+  onRackPointerDown(e) {
+    if (this.busy || this.game.gameOver || this.exchangeMode) return;
+    const tile = e.target.closest('.rack-tile');
+    if (!tile) return;
+    const i = +tile.dataset.i;
+    if (this.pending.some((p) => p.rackIndex === i)) return; // already on board
+    this._drag = {
+      i, letter: this.game.racks.human[i],
+      startX: e.clientX, startY: e.clientY, pointerId: e.pointerId,
+      srcEl: tile, active: false,
+    };
+    window.addEventListener('pointermove', this._onDragMove, { passive: false });
+    window.addEventListener('pointerup', this._onDragUp);
+    window.addEventListener('pointercancel', this._onDragUp);
+  }
+
+  onDragMove(e) {
+    const d = this._drag;
+    if (!d || e.pointerId !== d.pointerId) return;
+    if (!d.active) {
+      if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < 8) return;
+      d.active = true;
+      this.startGhost(d);
+      document.body.classList.add('dragging-tile');
+      d.srcEl.classList.add('dragging-src');
+    }
+    e.preventDefault();
+    this.moveGhost(e.clientX, e.clientY);
+    this.updateDropTarget(e.clientX, e.clientY);
+  }
+
+  onDragUp(e) {
+    const d = this._drag;
+    if (!d || e.pointerId !== d.pointerId) return;
+    window.removeEventListener('pointermove', this._onDragMove);
+    window.removeEventListener('pointerup', this._onDragUp);
+    window.removeEventListener('pointercancel', this._onDragUp);
+    this._drag = null;
+    if (!d.active) return; // it was a tap; let the click handler select it
+
+    this.endGhost();
+    document.body.classList.remove('dragging-tile');
+    d.srcEl.classList.remove('dragging-src');
+    this._suppressRackClick = true; // swallow the click that trails a drag
+    clearTimeout(this._suppressTimer);
+    this._suppressTimer = setTimeout(() => { this._suppressRackClick = false; }, 350);
+
+    const x = e.clientX, y = e.clientY;
+    const cell = this.cellFromPoint(x, y);
+    const cellEmpty = cell &&
+      !this.game.grid[+cell.dataset.r][+cell.dataset.c] &&
+      !this.pending.some((p) => p.r === +cell.dataset.r && p.c === +cell.dataset.c);
+    this.clearHighlights();
+
+    if (cellEmpty) {
+      this.selected = d.i;
+      this.onBoardCell(+cell.dataset.r, +cell.dataset.c); // place + blank chooser + render
+    } else if (this.overRack(x, y)) {
+      this.reorderRack(d.i, this.computeRackDropIndex(x, d.i)); // rearrange tray
+    }
+  }
+
+  cellFromPoint(x, y) {
+    const el = document.elementFromPoint(x, y);
+    return el ? el.closest('.cell') : null;
+  }
+
+  startGhost(d) {
+    const g = document.createElement('div');
+    g.className = 'tile-ghost';
+    const val = d.letter === '_' ? 0 : LETTER_VALUES[d.letter];
+    g.innerHTML = d.letter === '_' ? '<span class="blank-face">?</span>' : `${d.letter}<sub>${val}</sub>`;
+    const rect = d.srcEl.getBoundingClientRect();
+    g.style.width = `${rect.width}px`;
+    g.style.height = `${rect.height}px`;
+    document.body.appendChild(g);
+    this._ghost = g;
+  }
+
+  moveGhost(x, y) {
+    if (this._ghost) this._ghost.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -65%)`;
+  }
+
+  endGhost() {
+    if (this._ghost) { this._ghost.remove(); this._ghost = null; }
+  }
+
+  updateDropTarget(x, y) {
+    const cell = this.cellFromPoint(x, y);
+    const r = cell ? +cell.dataset.r : -1, c = cell ? +cell.dataset.c : -1;
+    const cellEmpty = cell && !this.game.grid[r][c] && !this.pending.some((p) => p.r === r && p.c === c);
+    if (cellEmpty) {
+      this.clearRackIndicator();
+      if (cell !== this._dropCell) { this.clearCellHighlight(); cell.classList.add('drop-target'); this._dropCell = cell; }
+    } else {
+      this.clearCellHighlight();
+      if (this.overRack(x, y)) this.updateRackIndicator(x);
+      else this.clearRackIndicator();
+    }
+  }
+
+  clearCellHighlight() {
+    if (this._dropCell) { this._dropCell.classList.remove('drop-target'); this._dropCell = null; }
+  }
+
+  clearHighlights() { this.clearCellHighlight(); this.clearRackIndicator(); }
+
+  // Is the pointer over (or just outside) the rack tray?
+  overRack(x, y) {
+    const r = this.rackEl.getBoundingClientRect();
+    return x >= r.left - 12 && x <= r.right + 12 && y >= r.top - 28 && y <= r.bottom + 28;
+  }
+
+  // Insertion index in the tray, ignoring the tile being dragged.
+  computeRackDropIndex(x, fromIndex) {
+    let to = 0;
+    [...this.rackEl.children].forEach((el, k) => {
+      if (k === fromIndex) return;
+      const r = el.getBoundingClientRect();
+      if (x > r.left + r.width / 2) to++;
+    });
+    return to;
+  }
+
+  updateRackIndicator(x) {
+    this.clearRackIndicator();
+    const others = [...this.rackEl.children].filter((_, k) => k !== this._drag.i);
+    const to = this.computeRackDropIndex(x, this._drag.i);
+    if (to < others.length) others[to].classList.add('drop-left');
+    else if (others.length) others[others.length - 1].classList.add('drop-right');
+  }
+
+  clearRackIndicator() {
+    for (const el of this.rackEl.children) el.classList.remove('drop-left', 'drop-right');
+  }
+
+  // Move a tray tile to a new slot, keeping pending-tile indices correct.
+  reorderRack(from, to) {
+    const rack = this.game.racks.human;
+    if (from < 0 || from >= rack.length) return;
+    const [tile] = rack.splice(from, 1);
+    to = Math.max(0, Math.min(to, rack.length));
+    rack.splice(to, 0, tile);
+    const remap = (j) => { let k = j > from ? j - 1 : j; if (k >= to) k++; return k; };
+    for (const p of this.pending) p.rackIndex = remap(p.rackIndex);
+    this.selected = null;
+    this.render();
   }
 
   // ---- Board / rack interaction ------------------------------------------
@@ -129,6 +363,7 @@ export class UI {
     const extra = res.words.length > 1 ? ` (${res.words.map((w) => w.word).join(', ')})` : '';
     this.setMessage(`✅ ${res.main} — ${res.score} pts${res.placements.length === 7 ? ' · BINGO! +50' : ''}${extra}`);
     this.render();
+    this.showPraise();
     this.afterHuman();
   }
 

@@ -1,92 +1,266 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <meta name="theme-color" content="#1f6f4a" />
-  <title>Scrabble vs Bot</title>
-  <link rel="stylesheet" href="./styles.css" />
-</head>
-<body>
-  <div id="loading" class="loading">Loading…</div>
+:root {
+  --felt: #1f6f4a;
+  --felt-dark: #16563a;
+  --tile: #f3e2bb;
+  --tile-edge: #c8b182;
+  --ink: #2a2118;
+  --tw: #e6543c;
+  --dw: #f0a6a0;
+  --tl: #2f7fb5;
+  --dl: #9cc9e3;
+  --panel: #102018;
+}
 
-  <div id="app" class="app hidden">
-    <header class="topbar">
-      <h1>Scrabble</h1>
-      <div class="scores">
-        <div class="score you">
-          <span class="lbl">You</span>
-          <span id="human-score" class="val">0</span>
-        </div>
-        <div class="score bot">
-          <span id="ai-label" class="lbl">Bot</span>
-          <span id="ai-score" class="val">0</span>
-        </div>
-      </div>
-    </header>
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
-    <div id="turn-indicator" class="turn">Your turn</div>
+html, body {
+  margin: 0;
+  background: #0c1611;
+  color: #eef3ef;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  overscroll-behavior: none;
+}
 
-    <main class="board-wrap">
-      <div id="board-viewport" class="board-viewport">
-        <div id="board" class="board"></div>
-      </div>
-      <div class="zoom-controls">
-        <button id="zoom-out" aria-label="Zoom out">−</button>
-        <button id="zoom-reset" aria-label="Reset zoom">⤢</button>
-        <button id="zoom-in" aria-label="Zoom in">+</button>
-      </div>
-    </main>
+.hidden { display: none !important; }
 
-    <div id="message" class="message"></div>
+.loading {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #0c1611; color: #cfe; font-size: 1rem; padding: 1rem; text-align: center;
+  z-index: 50;
+}
 
-    <div id="rack" class="rack"></div>
+.app {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 8px 8px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 
-    <div class="controls">
-      <button id="btn-play" class="primary">Play</button>
-      <button id="btn-recall">Recall</button>
-      <button id="btn-shuffle">Shuffle</button>
-      <button id="btn-pass">Pass</button>
-      <button id="btn-exchange">Swap</button>
-    </div>
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.topbar h1 { font-size: 1.25rem; margin: 0; letter-spacing: 1px; }
+.scores { display: flex; gap: 8px; }
+.score {
+  background: var(--panel); border-radius: 10px; padding: 4px 12px;
+  display: flex; flex-direction: column; align-items: center; min-width: 64px;
+  border: 2px solid transparent;
+}
+.score .lbl { font-size: .7rem; opacity: .8; }
+.score .val { font-size: 1.3rem; font-weight: 700; }
+.your-turn .score.you { border-color: #59d98a; }
 
-    <div class="meta">
-      <label>Difficulty
-        <select id="difficulty">
-          <option value="easy">Easy</option>
-          <option value="medium" selected>Medium</option>
-          <option value="hard">Hard</option>
-          <option value="insane">Insane</option>
-        </select>
-      </label>
-      <button id="btn-newgame">New Game</button>
-      <span class="bag">Bag: <b id="bag-count">0</b></span>
-    </div>
+.turn {
+  text-align: center; font-size: .85rem; opacity: .85;
+  background: var(--panel); border-radius: 8px; padding: 4px;
+}
 
-    <ul id="log" class="log"></ul>
+/* Board */
+.board-wrap { position: relative; display: flex; justify-content: center; }
+.board-viewport {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: 8px;
+  position: relative;
+  touch-action: none;          /* we handle pinch/pan ourselves */
+  background: var(--felt-dark);
+}
+.board {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(15, 1fr);
+  grid-template-rows: repeat(15, 1fr);
+  gap: 2px;
+  background: var(--felt-dark);
+  padding: 4px;
+  border-radius: 8px;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+.zoom-controls {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  gap: 6px;
+  z-index: 5;
+}
+.zoom-controls button {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(16, 32, 24, .82);
+  color: #eef3ef;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,.4);
+  cursor: pointer;
+}
+.zoom-controls button:active { transform: scale(.92); }
+.board-viewport.zoomed { box-shadow: inset 0 0 0 2px #59d98a; }
+.cell {
+  background: var(--felt);
+  border-radius: 3px;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  font-size: clamp(7px, 1.7vw, 11px);
+  user-select: none;
+  cursor: pointer;
+}
+.cell.prem-TW { background: var(--tw); }
+.cell.prem-DW { background: var(--dw); }
+.cell.prem-TL { background: var(--tl); }
+.cell.prem-DL { background: var(--dl); }
+.cell.center { background: var(--dw); }
+.prem-label { font-weight: 700; color: rgba(0,0,0,.55); font-size: clamp(6px, 1.5vw, 9px); }
+.star { color: rgba(0,0,0,.55); font-size: 1.4em; }
 
-    <div id="praise" class="praise" aria-live="polite"></div>
-    <button id="praise-toggle" class="praise-toggle" aria-label="Toggle praise pop-ups">💖</button>
-  </div>
+.tile {
+  position: absolute; inset: 1px;
+  background: var(--tile);
+  color: var(--ink);
+  border-radius: 3px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700;
+  font-size: clamp(11px, 2.9vw, 18px);
+  box-shadow: inset 0 -2px 0 var(--tile-edge);
+}
+.tile sub { font-size: .55em; font-weight: 600; margin-left: 1px; vertical-align: sub; }
+.tile.blank { color: #8a3; }
+.cell.pending .tile { background: #fff6da; box-shadow: inset 0 -2px 0 #d9b85a, 0 0 0 2px #59d98a; }
+.cell.last .tile { box-shadow: inset 0 -2px 0 var(--tile-edge), 0 0 0 2px #f5d36b; }
 
-  <!-- Blank tile chooser -->
-  <div id="blank-modal" class="modal hidden">
-    <div class="modal-card">
-      <h2>Choose a letter for the blank</h2>
-      <div class="blank-grid"></div>
-      <button class="blank-cancel">Cancel</button>
-    </div>
-  </div>
+/* Rack */
+.rack {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  background: #6a4a2a;
+  padding: 8px;
+  border-radius: 10px;
+  box-shadow: inset 0 3px 8px rgba(0,0,0,.4);
+}
+.rack-tile {
+  aspect-ratio: 1 / 1.05;
+  background: var(--tile);
+  color: var(--ink);
+  border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: clamp(16px, 5vw, 26px);
+  box-shadow: inset 0 -3px 0 var(--tile-edge);
+  cursor: grab; position: relative;
+  user-select: none;
+  touch-action: none;          /* let us drag tiles without scrolling */
+}
+.rack-tile sub { font-size: .5em; font-weight: 600; }
+.rack-tile.dragging-src { opacity: .28; }
+.rack-tile.drop-left { box-shadow: inset 5px 0 0 #59d98a, inset 0 -3px 0 var(--tile-edge); }
+.rack-tile.drop-right { box-shadow: inset -5px 0 0 #59d98a, inset 0 -3px 0 var(--tile-edge); }
 
-  <!-- End of game -->
-  <div id="end-modal" class="modal hidden">
-    <div class="modal-card">
-      <h2 id="end-title">Game over</h2>
-      <p id="end-detail"></p>
-      <button id="end-newgame" class="primary">Play again</button>
-    </div>
-  </div>
+/* Floating tile that follows the finger/cursor while dragging. */
+.tile-ghost {
+  position: fixed; left: 0; top: 0; z-index: 200;
+  pointer-events: none;
+  background: #fff6da; color: var(--ink);
+  border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: clamp(16px, 5vw, 26px);
+  box-shadow: 0 6px 16px rgba(0,0,0,.55);
+}
+.tile-ghost sub { font-size: .5em; font-weight: 600; }
+.tile-ghost .blank-face { opacity: .45; }
+.cell.drop-target { box-shadow: inset 0 0 0 2px #59d98a, 0 0 8px #59d98a; border-radius: 3px; }
+body.dragging-tile { cursor: grabbing; }
+.rack-tile .blank-face { opacity: .45; }
+.rack-tile.selected { transform: translateY(-6px); box-shadow: inset 0 -3px 0 var(--tile-edge), 0 0 0 3px #59d98a; }
+.rack-tile.used { opacity: .25; pointer-events: none; }
+.rack-tile.swap { box-shadow: inset 0 -3px 0 var(--tile-edge), 0 0 0 3px #e6543c; }
 
-  <script type="module" src="./js/main.js"></script>
-</body>
-</html>
+/* Controls */
+.controls { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.controls button, .meta button {
+  background: #20392b; color: #eef3ef; border: 1px solid #2f5740;
+  border-radius: 8px; padding: 12px 4px; font-size: .9rem; font-weight: 600;
+  cursor: pointer;
+}
+.controls button:active, .meta button:active { transform: scale(.96); }
+.controls .primary, #end-newgame.primary { background: #2faa63; border-color: #38c878; }
+
+.message {
+  min-height: 1.3em; text-align: center; font-size: .9rem; padding: 2px;
+}
+.message.thinking { font-style: italic; opacity: .8; }
+
+.meta {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font-size: .85rem; justify-content: center;
+}
+.meta select { padding: 6px; border-radius: 6px; background: #20392b; color: #eef; border: 1px solid #2f5740; }
+.meta .bag { opacity: .85; }
+
+.log { list-style: none; margin: 0; padding: 0; font-size: .8rem; opacity: .85; }
+.log li { padding: 2px 4px; border-bottom: 1px solid rgba(255,255,255,.06); }
+
+/* Praise pop-up + toggle */
+.praise {
+  position: fixed;
+  top: 14%;
+  left: 50%;
+  transform: translate(-50%, -10px) scale(.9);
+  background: linear-gradient(135deg, #ff6fae, #a06bff);
+  color: #fff;
+  padding: 14px 22px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: clamp(1rem, 4.2vw, 1.25rem);
+  text-align: center;
+  max-width: 90vw;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, .5);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 300;
+  transition: opacity .28s ease, transform .28s cubic-bezier(.18,.9,.32,1.4);
+}
+.praise.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
+
+.praise-toggle {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  width: 46px; height: 46px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(16, 32, 24, .85);
+  font-size: 1.4rem; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .45);
+  cursor: pointer;
+  z-index: 120;
+}
+.praise-toggle.off { filter: grayscale(1); opacity: .55; }
+.praise-toggle:active { transform: scale(.92); }
+
+/* Modals */
+.modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,.6);
+  display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 100;
+}
+.modal-card {
+  background: #14241b; border: 1px solid #2f5740; border-radius: 12px;
+  padding: 18px; max-width: 360px; width: 100%; text-align: center;
+}
+.modal-card h2 { margin: 0 0 12px; font-size: 1.1rem; }
+.blank-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 12px; }
+.blank-grid button {
+  aspect-ratio: 1; background: var(--tile); color: var(--ink);
+  border: none; border-radius: 5px; font-weight: 700; font-size: 1rem; cursor: pointer;
+}
+.blank-cancel { background: #20392b; color: #eef; border: 1px solid #2f5740; border-radius: 8px; padding: 8px 16px; cursor: pointer; }
+#end-newgame { margin-top: 8px; padding: 10px 20px; border-radius: 8px; border: none; font-weight: 700; }

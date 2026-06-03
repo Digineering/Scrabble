@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#1f6f4a" />
+  <title>Scrabble vs Bot</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div id="loading" class="loading">Loading…</div>
+
+  <div id="app" class="app hidden">
+    <header class="topbar">
+      <h1>Scrabble</h1>
+      <div class="scores">
+        <div class="score you">
+          <span class="lbl">You</span>
+          <span id="human-score" class="val">0</span>
+        </div>
+        <div class="score bot">
+          <span id="ai-label" class="lbl">Bot</span>
+          <span id="ai-score" class="val">0</span>
+        </div>
+      </div>
+    </header>
+
+    <div id="turn-indicator" class="turn">Your turn</div>
+
+    <main class="board-wrap">
+      <div id="board-viewport" class="board-viewport">
+        <div id="board" class="board"></div>
+      </div>
+      <div class="zoom-controls">
+        <button id="zoom-out" aria-label="Zoom out">−</button>
+        <button id="zoom-reset" aria-label="Reset zoom">⤢</button>
+        <button id="zoom-in" aria-label="Zoom in">+</button>
+      </div>
+    </main>
+
+    <div id="message" class="message"></div>
+
+    <div id="rack" class="rack"></div>
+
+    <div class="controls">
+      <button id="btn-play" class="primary">Play</button>
+      <button id="btn-recall">Recall</button>
+      <button id="btn-shuffle">Shuffle</button>
+      <button id="btn-pass">Pass</button>
+      <button id="btn-exchange">Swap</button>
+    </div>
+
+    <div class="meta">
+      <label>Difficulty
+        <select id="difficulty">
+          <option value="easy">Easy</option>
+          <option value="medium" selected>Medium</option>
+          <option value="hard">Hard</option>
+          <option value="insane">Insane</option>
+        </select>
+      </label>
+      <button id="btn-newgame">New Game</button>
+      <span class="bag">Bag: <b id="bag-count">0</b></span>
+    </div>
+
+    <ul id="log" class="log"></ul>
+
+    <div id="praise" class="praise" aria-live="polite"></div>
+    <button id="praise-toggle" class="praise-toggle" aria-label="Toggle praise pop-ups">💖</button>
+  </div>
+
+  <!-- Blank tile chooser -->
+  <div id="blank-modal" class="modal hidden">
+    <div class="modal-card">
+      <h2>Choose a letter for the blank</h2>
+      <div class="blank-grid"></div>
+      <button class="blank-cancel">Cancel</button>
+    </div>
+  </div>
+
+  <!-- End of game -->
+  <div id="end-modal" class="modal hidden">
+    <div class="modal-card">
+      <h2 id="end-title">Game over</h2>
+      <p id="end-detail"></p>
+      <button id="end-newgame" class="primary">Play again</button>
+    </div>
+  </div>
+
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>

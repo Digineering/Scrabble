@@ -1,111 +1,143 @@
-// Pinch-to-zoom + pan for the board only. The rack and controls are outside
-// the board viewport, so they're unaffected. Single taps still fall through to
-// the normal tile-placement click handler.
+// Game state and turn flow. UI-agnostic: the UI layer drives it and re-renders.
 
-export function enableBoardZoom(viewport, board) {
-  let scale = 1, tx = 0, ty = 0;
-  const MIN = 1, MAX = 3;
-  const pointers = new Map();
-  let pinch = null;     // { dist, bx, by } captured at pinch start
-  let panLast = null;   // last pointer position while panning
-  let moved = false;    // gesture moved -> suppress the trailing click
+import { SIZE, RACK_SIZE, LETTER_VALUES, freshBag } from './constants.js';
+import { emptyBoard, analyze, boardIsEmpty } from './engine.js';
+import { chooseMove } from './ai.js';
 
-  const vw = () => viewport.clientWidth;
-  const vh = () => viewport.clientHeight;
-  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-  const mid = (p) => ({ x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 });
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
 
-  function pos(e) {
-    const r = viewport.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
-  }
-  function clamp() {
-    tx = Math.min(0, Math.max(vw() * (1 - scale), tx));
-    ty = Math.min(0, Math.max(vh() * (1 - scale), ty));
-  }
-  function apply() {
-    clamp();
-    board.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
-    viewport.classList.toggle('zoomed', scale > 1.001);
-  }
-  // Zoom keeping the board point under (pivotX,pivotY) fixed.
-  function zoomTo(next, pivotX, pivotY) {
-    next = Math.min(MAX, Math.max(MIN, next));
-    const bx = (pivotX - tx) / scale;
-    const by = (pivotY - ty) / scale;
-    scale = next;
-    tx = pivotX - bx * scale;
-    ty = pivotY - by * scale;
-    if (scale <= 1.001) { scale = 1; tx = 0; ty = 0; }
-    apply();
+export const rackValue = (rack) => rack.reduce((s, t) => s + LETTER_VALUES[t], 0);
+
+export class Game {
+  constructor(trie) {
+    this.trie = trie;
+    this.newGame('medium');
   }
 
-  viewport.addEventListener('pointerdown', (e) => {
-    pointers.set(e.pointerId, pos(e));
-    moved = false;
-    if (pointers.size === 2) {
-      const p = [...pointers.values()];
-      const m = mid(p);
-      pinch = { dist: dist(p[0], p[1]), bx: (m.x - tx) / scale, by: (m.y - ty) / scale };
-      panLast = null;
-    } else if (pointers.size === 1) {
-      panLast = scale > 1 ? pos(e) : null;
+  newGame(difficulty = this.difficulty || 'medium') {
+    this.difficulty = difficulty;
+    this.grid = emptyBoard();
+    this.bag = shuffle(freshBag());
+    this.racks = { human: [], ai: [] };
+    this.scores = { human: 0, ai: 0 };
+    this.refill('human');
+    this.refill('ai');
+    this.turn = 'human';
+    this.scorelessStreak = 0;
+    this.gameOver = false;
+    this.winner = null;
+    this.log = [];
+    this.lastMoveCells = [];
+  }
+
+  draw(n) {
+    const out = [];
+    for (let i = 0; i < n && this.bag.length; i++) out.push(this.bag.pop());
+    return out;
+  }
+
+  refill(who) {
+    const need = RACK_SIZE - this.racks[who].length;
+    if (need > 0) this.racks[who].push(...this.draw(need));
+  }
+
+  // Apply an already-validated placement for `who`. Returns the analyze result.
+  applyMove(who, placements) {
+    const res = analyze(this.grid, placements, this.trie);
+    if (!res.ok) return res;
+
+    for (const p of placements) this.grid[p.r][p.c] = { letter: p.letter, blank: !!p.blank };
+
+    // Remove used tiles from the rack (blanks come from '_').
+    const rack = this.racks[who];
+    for (const p of placements) {
+      const want = p.blank ? '_' : p.letter;
+      const idx = rack.indexOf(want);
+      if (idx !== -1) rack.splice(idx, 1);
     }
-  });
 
-  window.addEventListener('pointermove', (e) => {
-    if (!pointers.has(e.pointerId)) return;
-    pointers.set(e.pointerId, pos(e));
-    if (pointers.size === 2 && pinch) {
-      const p = [...pointers.values()];
-      const m = mid(p);
-      scale = Math.min(MAX, Math.max(MIN, dist(p[0], p[1]) / pinch.dist));
-      tx = m.x - pinch.bx * scale;
-      ty = m.y - pinch.by * scale;
-      if (scale <= 1.001) { scale = 1; tx = 0; ty = 0; }
-      apply();
-      moved = true;
-      e.preventDefault();
-    } else if (pointers.size === 1 && panLast && scale > 1) {
-      const p = pos(e);
-      tx += p.x - panLast.x;
-      ty += p.y - panLast.y;
-      panLast = p;
-      apply();
-      moved = true;
-      e.preventDefault();
-    }
-  }, { passive: false });
+    this.scores[who] += res.score;
+    this.scorelessStreak = 0;
+    this.lastMoveCells = placements.map((p) => ({ r: p.r, c: p.c }));
+    this.refill(who);
+    this.log.push({ who, type: 'play', word: res.main, score: res.score });
 
-  function end(e) {
-    if (!pointers.has(e.pointerId)) return;
-    pointers.delete(e.pointerId);
-    if (pointers.size < 2) pinch = null;
-    if (pointers.size === 1) {
-      const id = [...pointers.keys()][0];
-      panLast = scale > 1 ? pointers.get(id) : null;
-    } else if (pointers.size === 0) {
-      panLast = null;
+    if (rack.length === 0 && this.bag.length === 0) {
+      this.finalize('out', who);
     }
+    return res;
   }
-  window.addEventListener('pointerup', end);
-  window.addEventListener('pointercancel', end);
 
-  // Swallow the click that follows a pan/pinch so it doesn't place a tile.
-  viewport.addEventListener('click', (e) => {
-    if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; }
-  }, true);
+  exchange(who, tiles) {
+    if (this.bag.length < 1) return { ok: false, reason: 'Not enough tiles to exchange.' };
+    const rack = this.racks[who];
+    const returned = [];
+    for (const t of tiles) {
+      const idx = rack.indexOf(t);
+      if (idx !== -1) { rack.splice(idx, 1); returned.push(t); }
+    }
+    if (returned.length === 0) return { ok: false, reason: 'No tiles selected.' };
+    const drawn = this.draw(returned.length);
+    rack.push(...drawn);
+    this.bag.push(...returned);
+    shuffle(this.bag);
+    this.bumpScoreless(who, 'exchange', returned.length);
+    return { ok: true, count: returned.length };
+  }
 
-  // Desktop: wheel / trackpad zoom around the cursor.
-  viewport.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    const p = pos(e);
-    zoomTo(scale * (e.deltaY < 0 ? 1.12 : 0.89), p.x, p.y);
-  }, { passive: false });
+  pass(who) {
+    this.bumpScoreless(who, 'pass');
+    return { ok: true };
+  }
 
-  return {
-    zoomIn: () => zoomTo(scale * 1.4, vw() / 2, vh() / 2),
-    zoomOut: () => zoomTo(scale / 1.4, vw() / 2, vh() / 2),
-    reset: () => zoomTo(1, vw() / 2, vh() / 2),
-  };
+  bumpScoreless(who, type, count) {
+    this.scorelessStreak += 1;
+    this.log.push({ who, type, count });
+    if (this.scorelessStreak >= 6) this.finalize('passes');
+  }
+
+  nextTurn() {
+    if (this.gameOver) return;
+    this.turn = this.turn === 'human' ? 'ai' : 'human';
+  }
+
+  // Run the AI's turn. Returns a description for the UI.
+  runAI() {
+    if (this.gameOver) return null;
+    const decision = chooseMove(this.grid, this.racks.ai, this.trie, this.difficulty);
+    if (decision.type === 'play') {
+      const res = this.applyMove('ai', decision.move.placements);
+      return { type: 'play', placements: decision.move.placements, word: res.main, score: res.score };
+    }
+    if (decision.type === 'exchange' && this.bag.length >= 1) {
+      const tiles = this.racks.ai.slice(0, Math.min(decision.count, this.bag.length));
+      this.exchange('ai', tiles);
+      return { type: 'exchange', count: tiles.length };
+    }
+    this.pass('ai');
+    return { type: 'pass' };
+  }
+
+  finalize(reason, outPlayer = null) {
+    if (this.gameOver) return;
+    this.gameOver = true;
+    if (reason === 'out' && outPlayer) {
+      const other = outPlayer === 'human' ? 'ai' : 'human';
+      const remaining = rackValue(this.racks[other]);
+      this.scores[outPlayer] += remaining;
+      this.scores[other] -= remaining;
+    } else {
+      // All-pass ending: everyone loses their own rack value.
+      for (const who of ['human', 'ai']) this.scores[who] -= rackValue(this.racks[who]);
+    }
+    this.winner =
+      this.scores.human === this.scores.ai ? 'tie' : this.scores.human > this.scores.ai ? 'human' : 'ai';
+    this.endReason = reason;
+  }
 }

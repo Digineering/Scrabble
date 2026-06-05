@@ -7,15 +7,20 @@
   <title>Scrabble vs Bot</title>
   <style>
 :root {
-  --felt: #1f6f4a;
-  --felt-dark: #16563a;
-  --tile: #f3e2bb;
-  --tile-edge: #c8b182;
-  --ink: #2a2118;
-  --tw: #e6543c;
-  --dw: #f0a6a0;
-  --tl: #2f7fb5;
-  --dl: #9cc9e3;
+  --board-bg: #ffffff;       /* gaps between squares */
+  --cell: #dcdae4;           /* empty square (lavender-grey) */
+  --felt: #dcdae4;
+  --felt-dark: #ffffff;
+  --tile: #f3e7c4;           /* cream tile */
+  --tile-edge: #cdb98a;
+  --ink: #1c5a2e;            /* dark-green letters */
+  --tw: #e3158a;             /* triple word — pink */
+  --dw: #f29d83;             /* double word — coral */
+  --tl: #1f74b8;             /* triple letter — blue */
+  --dl: #a6d3ef;             /* double letter — light blue */
+  --tray: #5bb24a;           /* green rack tray */
+  --valid: #2aa84a;
+  --invalid: #e23b3b;
   --panel: #102018;
 }
 
@@ -127,8 +132,8 @@ html, body {
 .cell.prem-TL { background: var(--tl); }
 .cell.prem-DL { background: var(--dl); }
 .cell.center { background: var(--dw); }
-.prem-label { font-weight: 700; color: rgba(0,0,0,.55); font-size: clamp(6px, 1.5vw, 9px); }
-.star { color: rgba(0,0,0,.55); font-size: 1.4em; }
+.prem-label { font-weight: 800; color: #fff; font-size: clamp(6px, 1.5vw, 9px); letter-spacing: .3px; }
+.star { color: #fff; font-size: 1.4em; }
 
 .tile {
   position: absolute; inset: 1px;
@@ -141,20 +146,36 @@ html, body {
   box-shadow: inset 0 -2px 0 var(--tile-edge);
 }
 .tile sub { font-size: .55em; font-weight: 600; margin-left: 1px; vertical-align: sub; }
-.tile.blank { color: #8a3; }
-.cell.pending .tile { background: #fff6da; box-shadow: inset 0 -2px 0 #d9b85a, 0 0 0 2px #59d98a; }
+.tile.blank { color: #4f8a4a; }
+.cell.pending .tile { background: #fbf1cf; box-shadow: inset 0 -2px 0 #d9b85a; }
+.cell.pending.dragging-src .tile { opacity: .3; }
 .cell.last .tile { box-shadow: inset 0 -2px 0 var(--tile-edge), 0 0 0 2px #f5d36b; }
+
+/* Live word feedback */
+.cell.valid-word .tile { box-shadow: inset 0 -2px 0 #d9b85a, 0 0 0 2px var(--valid); }
+.score-badge {
+  position: absolute; right: -3px; bottom: -5px;
+  min-width: 15px; height: 15px; padding: 0 3px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: clamp(7px, 1.9vw, 11px); font-weight: 800; color: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,.45);
+  z-index: 6; pointer-events: none;
+}
+.score-badge.valid { background: var(--valid); }
+.score-badge.invalid { background: var(--invalid); }
 
 /* Rack */
 .rack {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 6px;
-  background: #6a4a2a;
+  background: var(--tray);
   padding: 8px;
   border-radius: 10px;
-  box-shadow: inset 0 3px 8px rgba(0,0,0,.4);
+  box-shadow: inset 0 3px 8px rgba(0,0,0,.3);
 }
+.rack.recall-target { box-shadow: inset 0 0 0 3px #f0c24b, inset 0 3px 8px rgba(0,0,0,.3); }
 .rack-tile {
   aspect-ratio: 1 / 1.05;
   background: var(--tile);
@@ -179323,23 +179344,33 @@ function analyze(grid, placements, trie) {
     if (!touches) return { ok: false, reason: 'New word must connect to the board.' };
   }
 
-  // Validate against the dictionary.
-  for (const cells of words) {
-    const w = cellsToWord(cells);
-    if (!trie.has(w)) return { ok: false, reason: `${w} isn't in the dictionary.` };
-  }
-
-  // Score.
+  // Score every formed word and check each against the dictionary.
+  // Geometry is valid at this point, so callers can show a live (tentative)
+  // score even when a word isn't in the dictionary.
   let score = 0;
   const wordList = [];
+  let allValid = true;
   for (const cells of words) {
+    const w = cellsToWord(cells);
     const s = scoreWord(cells, placedSet);
+    const valid = trie.has(w);
+    if (!valid) allValid = false;
     score += s;
-    wordList.push({ word: cellsToWord(cells), score: s });
+    wordList.push({ word: w, score: s, valid, cells: cells.map((c) => ({ r: c.r, c: c.c })) });
   }
   if (placements.length === 7) score += BINGO_BONUS;
 
-  return { ok: true, score, words: wordList, main: cellsToWord(mainCells), horizontal, placements };
+  return {
+    ok: allValid,
+    geometryOk: true,
+    reason: allValid ? '' : `${(wordList.find((w) => !w.valid) || {}).word} isn't in the dictionary.`,
+    score,
+    words: wordList,
+    main: cellsToWord(mainCells),
+    mainCells: mainCells.map((c) => ({ r: c.r, c: c.c })),
+    horizontal,
+    placements,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -179513,11 +179544,11 @@ function generateMoves(grid, rack, trie) {
 // chosen difficulty by sampling from a score-ranked band of candidates.
 
 const LEVELS = {
-  // exchangeBelow 0 keeps Easy playing its (weak) words instead of constantly
-  // swapping tiles, which makes for a friendlier opponent.
-  easy:   { band: [0.60, 0.92], maxScore: 18, allowBingo: false, exchangeBelow: 0 },
-  medium: { band: [0.35, 0.70], maxScore: 45, allowBingo: true,  exchangeBelow: 4 },
-  hard:   { band: [0.03, 0.18], maxScore: Infinity, allowBingo: true, exchangeBelow: 6 },
+  // Shifted up: the old "easy" is gone — new Easy is tougher than the old
+  // Medium, and every level above is harder again.
+  easy:   { band: [0.14, 0.40], maxScore: 60, allowBingo: true, exchangeBelow: 2 },
+  medium: { band: [0.07, 0.22], maxScore: Infinity, allowBingo: true, exchangeBelow: 4 },
+  hard:   { band: [0.01, 0.06], maxScore: Infinity, allowBingo: true, exchangeBelow: 6 },
   insane: { band: [0.00, 0.00], maxScore: Infinity, allowBingo: true, exchangeBelow: 8 },
 };
 
@@ -179940,9 +179971,11 @@ class UI {
     $('#end-newgame').onclick = () => { this.endModal.classList.add('hidden'); this.startNewGame(); };
 
     this.boardEl.addEventListener('click', (e) => {
+      if (this._suppressBoardClick) { this._suppressBoardClick = false; return; }
       const cell = e.target.closest('.cell');
       if (cell) this.onBoardCell(+cell.dataset.r, +cell.dataset.c);
     });
+    this.boardEl.addEventListener('pointerdown', (e) => this.onBoardPointerDown(e));
     this.rackEl.addEventListener('click', (e) => {
       if (this._suppressRackClick) { this._suppressRackClick = false; return; }
       const tile = e.target.closest('.rack-tile');
@@ -179962,10 +179995,31 @@ class UI {
     const i = +tile.dataset.i;
     if (this.pending.some((p) => p.rackIndex === i)) return; // already on board
     this._drag = {
-      i, letter: this.game.racks.human[i],
+      source: 'rack', i, letter: this.game.racks.human[i], blank: this.game.racks.human[i] === '_',
       startX: e.clientX, startY: e.clientY, pointerId: e.pointerId,
       srcEl: tile, active: false,
     };
+    this.startDragListeners();
+  }
+
+  // Pick up a tile already placed on the board (to move it or take it off).
+  onBoardPointerDown(e) {
+    if (this.busy || this.game.gameOver || this.exchangeMode) return;
+    const cellEl = e.target.closest('.cell');
+    if (!cellEl) return;
+    const r = +cellEl.dataset.r, c = +cellEl.dataset.c;
+    const pend = this.pending.find((p) => p.r === r && p.c === c);
+    if (!pend) return;          // only pending tiles are draggable
+    e.stopPropagation();        // don't let the zoom controller start a pan
+    this._drag = {
+      source: 'board', tile: pend, letter: pend.letter, blank: !!pend.blank,
+      startX: e.clientX, startY: e.clientY, pointerId: e.pointerId,
+      srcEl: cellEl, active: false,
+    };
+    this.startDragListeners();
+  }
+
+  startDragListeners() {
     window.addEventListener('pointermove', this._onDragMove, { passive: false });
     window.addEventListener('pointerup', this._onDragUp);
     window.addEventListener('pointercancel', this._onDragUp);
@@ -179998,22 +180052,32 @@ class UI {
     this.endGhost();
     document.body.classList.remove('dragging-tile');
     d.srcEl.classList.remove('dragging-src');
-    this._suppressRackClick = true; // swallow the click that trails a drag
+    // swallow the click that trails a drag (it started on rack or board)
+    this._suppressRackClick = true;
+    this._suppressBoardClick = true;
     clearTimeout(this._suppressTimer);
-    this._suppressTimer = setTimeout(() => { this._suppressRackClick = false; }, 350);
+    this._suppressTimer = setTimeout(() => {
+      this._suppressRackClick = false; this._suppressBoardClick = false;
+    }, 350);
 
     const x = e.clientX, y = e.clientY;
     const cell = this.cellFromPoint(x, y);
-    const cellEmpty = cell &&
-      !this.game.grid[+cell.dataset.r][+cell.dataset.c] &&
-      !this.pending.some((p) => p.r === +cell.dataset.r && p.c === +cell.dataset.c);
+    let r = -1, c = -1, freeCell = false;
+    if (cell) {
+      r = +cell.dataset.r; c = +cell.dataset.c;
+      const occupied = this.game.grid[r][c] ||
+        this.pending.some((p) => p.r === r && p.c === c && p !== d.tile);
+      freeCell = !occupied;
+    }
     this.clearHighlights();
 
-    if (cellEmpty) {
-      this.selected = d.i;
-      this.onBoardCell(+cell.dataset.r, +cell.dataset.c); // place + blank chooser + render
-    } else if (this.overRack(x, y)) {
-      this.reorderRack(d.i, this.computeRackDropIndex(x, d.i)); // rearrange tray
+    if (d.source === 'rack') {
+      if (freeCell) { this.selected = d.i; this.onBoardCell(r, c); }           // place
+      else if (this.overRack(x, y)) this.reorderRack(d.i, this.computeRackDropIndex(x, d.i));
+    } else { // dragging a tile already on the board
+      if (freeCell) { d.tile.r = r; d.tile.c = c; this.render(); }             // move it
+      else if (this.overRack(x, y)) this.recallTile(d.tile);                   // take it off
+      else this.render();                                                     // snap back
     }
   }
 
@@ -180025,7 +180089,8 @@ class UI {
   startGhost(d) {
     const g = document.createElement('div');
     g.className = 'tile-ghost';
-    const val = d.letter === '_' ? 0 : LETTER_VALUES[d.letter];
+    const blank = d.blank || d.letter === '_';
+    const val = blank ? 0 : LETTER_VALUES[d.letter];
     g.innerHTML = d.letter === '_' ? '<span class="blank-face">?</span>' : `${d.letter}<sub>${val}</sub>`;
     const rect = d.srcEl.getBoundingClientRect();
     g.style.width = `${rect.width}px`;
@@ -180043,16 +180108,20 @@ class UI {
   }
 
   updateDropTarget(x, y) {
+    const d = this._drag;
     const cell = this.cellFromPoint(x, y);
     const r = cell ? +cell.dataset.r : -1, c = cell ? +cell.dataset.c : -1;
-    const cellEmpty = cell && !this.game.grid[r][c] && !this.pending.some((p) => p.r === r && p.c === c);
-    if (cellEmpty) {
-      this.clearRackIndicator();
+    const free = cell && !this.game.grid[r][c] &&
+      !this.pending.some((p) => p.r === r && p.c === c && p !== (d && d.tile));
+    if (free) {
+      this.clearRackIndicator(); this.setRecallTarget(false);
       if (cell !== this._dropCell) { this.clearCellHighlight(); cell.classList.add('drop-target'); this._dropCell = cell; }
     } else {
       this.clearCellHighlight();
-      if (this.overRack(x, y)) this.updateRackIndicator(x);
-      else this.clearRackIndicator();
+      if (this.overRack(x, y)) {
+        if (d && d.source === 'board') { this.clearRackIndicator(); this.setRecallTarget(true); }
+        else { this.setRecallTarget(false); this.updateRackIndicator(x); }
+      } else { this.clearRackIndicator(); this.setRecallTarget(false); }
     }
   }
 
@@ -180060,7 +180129,9 @@ class UI {
     if (this._dropCell) { this._dropCell.classList.remove('drop-target'); this._dropCell = null; }
   }
 
-  clearHighlights() { this.clearCellHighlight(); this.clearRackIndicator(); }
+  setRecallTarget(on) { this.rackEl.classList.toggle('recall-target', on); }
+
+  clearHighlights() { this.clearCellHighlight(); this.clearRackIndicator(); this.setRecallTarget(false); }
 
   // Is the pointer over (or just outside) the rack tray?
   overRack(x, y) {
@@ -180299,14 +180370,37 @@ class UI {
   }
 
   render() {
+    this.computePreview();
     this.renderBoard();
     this.renderRack();
     this.renderStatus();
   }
 
+  // Live feedback for the tiles being placed: which form valid words, and the
+  // running score (green) or the tentative score of an invalid word (red).
+  computePreview() {
+    this._preview = null;
+    if (!this.pending.length) return;
+    const placements = this.pending.map(({ r, c, letter, blank }) => ({ r, c, letter, blank }));
+    const res = analyze(this.game.grid, placements, this.game.trie);
+    if (!res.geometryOk) return; // not a real word/line yet — no badge
+    const validCells = new Set();
+    if (res.ok) for (const w of res.words) for (const cl of w.cells) validCells.add(cl.r * SIZE + cl.c);
+    let badgeKey;
+    if (res.mainCells && res.mainCells.length) {
+      const last = res.mainCells[res.mainCells.length - 1];
+      badgeKey = last.r * SIZE + last.c;
+    } else {
+      const p = this.pending[this.pending.length - 1];
+      badgeKey = p.r * SIZE + p.c;
+    }
+    this._preview = { validCells, badgeKey, score: res.score, valid: res.ok };
+  }
+
   renderBoard() {
     const pendMap = new Map(this.pending.map((p) => [p.r * SIZE + p.c, p]));
     const lastSet = new Set(this.game.lastMoveCells.map((m) => m.r * SIZE + m.c));
+    const pv = this._preview;
     for (let r = 0; r < SIZE; r++) {
       for (let c = 0; c < SIZE; c++) {
         const el = this.cellEls[r * SIZE + c];
@@ -180330,6 +180424,15 @@ class UI {
           el.classList.add('prem', 'prem-' + prem.label);
         } else {
           el.innerHTML = '';
+        }
+        if (pv) {
+          if (pv.validCells.has(k)) el.classList.add('valid-word');
+          if (pv.badgeKey === k) {
+            const b = document.createElement('span');
+            b.className = 'score-badge ' + (pv.valid ? 'valid' : 'invalid');
+            b.textContent = pv.score;
+            el.appendChild(b);
+          }
         }
       }
     }

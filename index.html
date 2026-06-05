@@ -294,6 +294,22 @@ body.dragging-tile { cursor: grabbing; }
 .blank-cancel { background: #20392b; color: #eef; border: 1px solid #2f5740; border-radius: 8px; padding: 8px 16px; cursor: pointer; }
 #end-newgame { margin-top: 8px; padding: 10px 20px; border-radius: 8px; border: none; font-weight: 700; }
 
+/* Stats panel */
+.stats-list { list-style: none; margin: 0 0 14px; padding: 0; text-align: left; }
+.stats-list li {
+  display: flex; justify-content: space-between; gap: 12px;
+  padding: 7px 4px; border-bottom: 1px solid rgba(255,255,255,.08);
+  font-size: .92rem;
+}
+.stats-list li span { opacity: .85; }
+.stats-list li b { font-weight: 800; }
+.stats-reset {
+  display: block; margin: 10px auto 0;
+  background: transparent; color: #e29; border: none;
+  font-size: .8rem; opacity: .8; cursor: pointer; text-decoration: underline;
+}
+#btn-stats { white-space: nowrap; }
+
   </style>
 </head>
 <body>
@@ -349,6 +365,7 @@ body.dragging-tile { cursor: grabbing; }
         </select>
       </label>
       <button id="btn-newgame">New Game</button>
+      <button id="btn-stats">📊 Stats</button>
       <span class="bag">Bag: <b id="bag-count">0</b></span>
     </div>
 
@@ -364,6 +381,16 @@ body.dragging-tile { cursor: grabbing; }
       <h2>Choose a letter for the blank</h2>
       <div class="blank-grid"></div>
       <button class="blank-cancel">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div id="stats-modal" class="modal hidden">
+    <div class="modal-card">
+      <h2>📊 Your Stats</h2>
+      <ul id="stats-list" class="stats-list"></ul>
+      <button id="stats-close" class="primary">Close</button>
+      <button id="stats-reset" class="stats-reset">Reset stats</button>
     </div>
   </div>
 
@@ -179855,31 +179882,198 @@ function enableBoardZoom(viewport, board) {
 
 const $ = (sel) => document.querySelector(sel);
 
-// Celebratory pop-ups shown when the player completes a word. 💖
+// Sassy-but-loving reactions to the player's words. Four moods, picked by
+// the word she just played.
+
+// Good plays — backhanded, show-off compliments. 💖😏
 const PRAISES = [
-  'Sandra, you are amazing! 💖',
-  'Z-A-Z-A spells A-M-A-Z-I-N-G! 🌟',
-  'Zaza — the best maker of words ever! 📖✨',
-  'Brilliant play, my love! 😘',
-  'Sandra, you absolute genius! 🧠💫',
-  'Word wizard Zaza strikes again! 🪄',
-  'Unstoppable, Sandra! 🔥',
-  'Zaza makes Scrabble look easy! 😍',
-  "That's my clever girl! 💚",
-  'Sandra, simply spectacular! 🎉',
-  'Zaza = pure word magic! ✨',
-  'Incredible, Sandra! Do it again! 👏',
-  "You're glowing, Zaza! 🌈",
-  'Queen of the tiles — Sandra! 👑',
-  'Sandra, you wonderful human! 💕',
-  'Zaza for the win! 🏆',
-  'Smartest, loveliest Sandra! 💞',
-  "Oh Zaza, you've done it again! 🤩",
-  'Masterpiece, Sandra! 🎨',
-  'Z-A-Z-A, you are the best! 💖',
-  'Sandra, my Scrabble superstar! ⭐',
-  'Dazzling word, Zaza! 💎',
+  "Ugh, fine. That was actually good. 🙄💖",
+  "Okay, show-off. 🌟",
+  "Not even a genius would've thought of that. 🧠",
+  "Did you swallow a dictionary, Zaza? 📖",
+  "Begrudgingly impressive. 👏",
+  "Alright, Shakespeare. ✍️",
+  "I hate that that was brilliant. 😤💕",
+  "Colin could never. 😏",
+  "Suspiciously clever, Sandra. 🤨",
+  "Okay, that one slapped. 🔥",
+  "Teacher's-pet energy. 🍎",
+  "Flexing, are we? 💪",
+  "Big-brain hours for Zaza. 🧠✨",
+  "Annoyingly good. 💅",
+  "Save some words for the rest of us. 🙃",
+  "That's going on the fridge. 🧲",
+  "Who taught you that?! 😲",
+  "Genuinely showing off now. 🌟",
+  "Fine. You win this round. 😒💖",
+  "The audacity to be this good. 💁‍♀️",
+  "Zaza the word-slayer. ⚔️",
+  "Okay, settle down, legend. 🏆",
+  "I'd be jealous if I weren't so proud. 💞",
+  "Scrabble-royalty behaviour. 👑",
+  "That was almost unfair. 😏",
+  "Chef's kiss, you menace. 👨‍🍳💋",
+  "'Sandra' means genius in some language, probably. 🤓",
+  "Stop making it look easy. 😩",
+  "Disgustingly talented. 🤌",
+  "Put that one in a museum. 🏛️",
+  "Okay, nerd. (Said with love.) 🤓💕",
+  "That word had no business being that good. 🔥",
+  "Effortlessly elite, Zaza. 💎",
+  "Colin just got a little more nervous. 😬",
+  "Certified word wizard. 🪄",
+  "You're enjoying this too much. 😈",
+  "Reluctant standing ovation. 👏👏",
+  "That's my brilliant wife. 😘",
+  "Insufferably good today. 🙄✨",
+  "Showoff. (Marry me again.) 💍",
 ];
+
+// Two-letter words — pure sass. 🤏
+const TWO_LETTER = [
+  "Two letters? Really? 🙄",
+  "Bold of you to call that a word. 😏",
+  "Wow. Two whole letters. Incredible. 👏",
+  "Is that the best you can do? 🫤",
+  "A two-letter word. Living large. 💸",
+  "Reaching for the stars, I see. ⭐",
+  "Minimalist. Very chic. 💅",
+  "That barely counts, Zaza. 🤏",
+  "Conserving energy, are we? 🔋",
+  "Two letters? Colin's laughing. 😂",
+  "Riveting stuff. Truly. 🥱",
+  "The bare minimum, beautifully done. 🙃",
+  "A word? Or a typo? 🤔",
+  "Big swing. Tiny word. ⚾",
+  "Scrabble's hardest move: giving up. 😆",
+  "That's not a word, that's a sound. 🗣️",
+  "Two letters of pure laziness. 😴",
+  "I've seen toddlers spell more. 🍼",
+  "Hoarding the good tiles, are we? 🐉",
+  "Economy-class word. ✈️",
+  "Saving the good ones for later? Sure. 😌",
+  "Itty-bitty word committee. 🤏",
+  "That was a warm-up, right? 🏃‍♀️",
+  "Two letters?! The audacity. 😤",
+  "Truly a word of all time. 🫠",
+  "Were you scared of the big tiles? 😱",
+  "A whisper of a word. 🤫",
+  "Half-hearted, Sandra. 💔",
+  "That's a syllable, not a word. 🙄",
+  "Phoning it in, I see. 📞",
+  "Even the board is unimpressed. 😐",
+  "Tiny word, tiny energy. 🐜",
+  "You call THAT a play? 🎭",
+  "I expected better, frankly. 🧐",
+  "Two letters and a dream. 💭",
+  "Did the big tiles intimidate you? 😅",
+  "Cute. Now do a real one. 😘",
+  "That's the appetiser, right? 🍤",
+  "Minimum effort, maximum sass deserved. 💁‍♀️",
+  "Two letters? Zaza, please. 🙏",
+];
+
+// Turn scored under 10 — affectionate roast. 😬
+const LOW_SCORE = [
+  "Yikes. You sure about that? 😬",
+  "Make sure Colin didn't see that. 👀",
+  "You can do better. We both know it. 🫤",
+  "That was... a choice. 🤷‍♀️",
+  "Oof. Single digits, Zaza. 📉",
+  "You suck. (Lovingly.) 💔",
+  "Delete that from the record. 🗑️",
+  "Was that on purpose? 🤔",
+  "I'm not mad, just disappointed. 😔",
+  "The tiles deserved better. 😢",
+  "Quick, blame the rack. 🎲",
+  "That's a 'we don't talk about it' move. 🤐",
+  "Pretend that didn't happen. 🙈",
+  "Colin's catching up, you know. 😏",
+  "Underwhelming, Sandra. 🥱",
+  "Points? Where? 🔍",
+  "A for effort, F for execution. 📝",
+  "That move needs a lawyer. ⚖️",
+  "Try harder, superstar. 🌟",
+  "Bless your heart. 💕",
+  "That's a rough one, champ. 🥊",
+  "Even I felt that one. 😵",
+  "Low score, high comedy. 🤡",
+  "We'll edit that out later. ✂️",
+  "Was the dictionary on holiday? 🏖️",
+  "Swing and a miss. ⚾",
+  "Your tiles are filing a complaint. 📋",
+  "That barely moved the needle. 📍",
+  "Are you sure? Like, really sure? 🤨",
+  "Single digits? In THIS economy? 💸",
+  "Hide the scoreboard. 🙊",
+  "That's a practice round, right? 🙏",
+  "Reaching new lows, Zaza. ⛏️",
+  "The bar was low. You limbo'd under it. 🪩",
+  "Not your finest hour. ⏰",
+  "I still love you. Barely. 😤💖",
+  "That word owes you nothing. 🚫",
+  "Colin would NEVER. (He would.) 😆",
+  "Do-over? No? Okay. 😬",
+  "We don't speak of this turn again. 🤫",
+];
+
+// Obscure / uncommon words — "do you even know what that means?" 🤨
+const UNCOMMON = [
+  "Okay... but do you know what that means? 🤨",
+  "Fancy word. Define it. I'll wait. ⏳",
+  "Showing off with words you can't spell twice? 😏",
+  "Cute. Use it in a sentence. ✍️",
+  "Did you just make that up? 🧐",
+  "The dictionary allowed it. Barely. 📖",
+  "Suspiciously obscure, Zaza. 🕵️‍♀️",
+  "Nobody's used that word since 1840. 🎩",
+  "Sure, that's 'a word.' 😼",
+  "Even Colin's Googling that one. 🔎",
+  "Big-word energy, tiny clue what it means. 🤷‍♀️",
+  "Pulling out the deep cuts, huh? 💿",
+  "That's a Scrabble word, not a real one. 😜",
+  "Impressive. Now spell it backwards. 🔄",
+  "Where did you even learn that?! 😲",
+  "Flex word detected. 💪",
+  "Define it for the class, Sandra. 🍎",
+  "The board respects you. We're confused. 😵‍💫",
+  "Okay, genius — meaning, please? 🤓",
+  "That word smells like a triple-word bluff. 🃏",
+  "Niche. Very niche. 🎯",
+  "You just won and learned nothing. 😆",
+  "Obscure flex, fully accepted. 🫡",
+  "I'm impressed and suspicious. 🤨",
+  "That's some crossword-puzzle witchcraft. 🧙‍♀️",
+  "Real word, or lucky tiles? 🎰",
+  "Encyclopedia behaviour. 📚",
+  "Ten points and zero comprehension. 😏",
+  "Sandra speaks fluent Scrabble. 🗣️",
+  "That belongs in a spelling bee. 🐝",
+  "Bold. Obscure. Unhinged. Love it. 💜",
+  "You sure that's not a sneeze? 🤧",
+  "Word of the day: whatever that was. 📅",
+  "The vocabulary on you. Suspicious. 🧐",
+  "Did your grandma teach you that? 👵",
+  "Rare word — rarer that you know it. 😜",
+  "Pulling words from another dimension. 🌀",
+  "That's a 'trust me' word. 🤝",
+  "Scholarly. Or chaotic. Can't tell. 🎓",
+  "Okay but... what IS that? 🫠",
+];
+
+// Common words that happen to use rare letters — don't tease these as obscure.
+const COMMON_RARE = new Set([
+  'JUST', 'JOB', 'JOBS', 'JOY', 'JOIN', 'JUMP', 'JUICE', 'MAJOR', 'ENJOY', 'JAZZ',
+  'SIZE', 'ZERO', 'ZONE', 'ZOO', 'ZIP', 'DOZEN', 'LAZY', 'CRAZY', 'PRIZE', 'AMAZE',
+  'QUIZ', 'QUIT', 'QUICK', 'QUIET', 'QUITE', 'SQUARE', 'QUEEN', 'QUEST',
+  'BOX', 'FOX', 'FIX', 'SIX', 'MIX', 'TAX', 'MAX', 'EXIT', 'EXTRA', 'NEXT', 'TEXT',
+  'SEXY', 'MIXED', 'FAX', 'WAX', 'EXAM', 'EXPECT', 'EXACT', 'RELAX', 'INDEX',
+]);
+
+// Treat very long words, or rare-lettered words that aren't common, as "obscure".
+function isUncommonWord(w) {
+  return !!w && (w.length >= 9 || (/[JQXZ]/.test(w) && !COMMON_RARE.has(w)));
+}
 
 class UI {
   constructor(game) {
@@ -179894,6 +180088,7 @@ class UI {
     this.buildBoard();
     this.initZoom();
     this.initPraise();
+    this.initStats();
     this.render();
   }
 
@@ -179925,18 +180120,112 @@ class UI {
     else this.praiseEl.classList.remove('show');
   }
 
-  showPraise() {
-    if (!this.praiseOn || !this.praiseEl) return;
-    let idx;
-    do { idx = Math.floor(Math.random() * PRAISES.length); }
-    while (PRAISES.length > 1 && idx === this._lastPraise);
-    this._lastPraise = idx;
-    this.praiseEl.textContent = PRAISES[idx];
+  showToast(text, ms = 3600) {
+    if (!this.praiseEl) return;
+    this.praiseEl.textContent = text;
     this.praiseEl.classList.remove('show');
     void this.praiseEl.offsetWidth; // restart the animation
     this.praiseEl.classList.add('show');
     clearTimeout(this._praiseTimer);
-    this._praiseTimer = setTimeout(() => this.praiseEl.classList.remove('show'), 3600);
+    this._praiseTimer = setTimeout(() => this.praiseEl.classList.remove('show'), ms);
+  }
+
+  showPraise() {
+    if (!this.praiseOn) return;
+    this.showToast(this.pick(PRAISES));
+  }
+
+  pick(arr) {
+    let i;
+    do { i = Math.floor(Math.random() * arr.length); } while (arr.length > 1 && i === this._lastMsg);
+    this._lastMsg = i;
+    return arr[i];
+  }
+
+  // Choose a reaction by the word she just played: 2-letter sass, obscure-word
+  // tease, sub-10 roast, or a backhanded well-done. Records always win.
+  reactToPlay(res, rec) {
+    if (rec.newBest) { this.showToast(`🏆 New best word: ${rec.word} (${rec.score})!`); return; }
+    if (!this.praiseOn) return;
+    const w = res.main || '';
+    let pool;
+    if (w.length === 2) pool = TWO_LETTER;
+    else if (isUncommonWord(w)) pool = UNCOMMON;
+    else if (res.score < 10) pool = LOW_SCORE;
+    else pool = PRAISES;
+    this.showToast(this.pick(pool));
+  }
+
+  // ---- Stats (saved on the device, no backend) ----------------------------
+
+  initStats() {
+    this.stats = this.loadStats();
+    this._endRecorded = false;
+    $('#btn-stats').onclick = () => this.openStats();
+    $('#stats-close').onclick = () => $('#stats-modal').classList.add('hidden');
+    $('#stats-reset').onclick = () => {
+      if (confirm('Reset all your stats?')) { this.stats = this.defaultStats(); this.saveStats(); this.openStats(); }
+    };
+  }
+
+  defaultStats() {
+    return {
+      games: 0, wins: 0, losses: 0, ties: 0, streak: 0, bestStreak: 0,
+      bestWord: { word: '—', score: 0 }, bestTurn: 0, bestGame: 0, bingos: 0, words: 0,
+    };
+  }
+
+  loadStats() {
+    const def = this.defaultStats();
+    try {
+      const s = JSON.parse(localStorage.getItem('zaza_stats'));
+      return s ? { ...def, ...s, bestWord: { ...def.bestWord, ...(s.bestWord || {}) } } : def;
+    } catch { return def; }
+  }
+
+  saveStats() { try { localStorage.setItem('zaza_stats', JSON.stringify(this.stats)); } catch {} }
+
+  recordPlay(res) {
+    const s = this.stats;
+    let best = null;
+    s.words += res.words.length;
+    if (res.placements.length === 7) s.bingos++;
+    if (res.score > s.bestTurn) s.bestTurn = res.score;
+    for (const w of res.words) {
+      if (w.score > s.bestWord.score) { s.bestWord = { word: w.word, score: w.score }; best = w; }
+    }
+    this.saveStats();
+    return best ? { newBest: true, word: best.word, score: best.score } : { newBest: false };
+  }
+
+  recordGameEnd() {
+    if (this._endRecorded) return;
+    this._endRecorded = true;
+    const s = this.stats, g = this.game;
+    s.games++;
+    if (g.winner === 'human') { s.wins++; s.streak++; if (s.streak > s.bestStreak) s.bestStreak = s.streak; }
+    else if (g.winner === 'ai') { s.losses++; s.streak = 0; }
+    else s.ties++;
+    if (g.scores.human > s.bestGame) s.bestGame = g.scores.human;
+    this.saveStats();
+  }
+
+  openStats() {
+    const s = this.stats;
+    const rows = [
+      ['Games played', s.games],
+      ['Wins', s.wins],
+      ['Losses', s.losses],
+      ['Current win streak', s.streak],
+      ['Best win streak', s.bestStreak],
+      ['Best word', s.bestWord.score ? `${s.bestWord.word} (${s.bestWord.score})` : '—'],
+      ['Best single turn', s.bestTurn],
+      ['Best game score', s.bestGame],
+      ['Bingos (all 7 tiles)', s.bingos],
+      ['Words played', s.words],
+    ];
+    $('#stats-list').innerHTML = rows.map(([k, v]) => `<li><span>${k}</span><b>${v}</b></li>`).join('');
+    $('#stats-modal').classList.remove('hidden');
   }
 
   initZoom() {
@@ -180251,7 +180540,8 @@ class UI {
     const extra = res.words.length > 1 ? ` (${res.words.map((w) => w.word).join(', ')})` : '';
     this.setMessage(`✅ ${res.main} — ${res.score} pts${res.placements.length === 7 ? ' · BINGO! +50' : ''}${extra}`);
     this.render();
-    this.showPraise();
+    const rec = this.recordPlay(res);
+    this.reactToPlay(res, rec);
     this.afterHuman();
   }
 
@@ -180325,6 +180615,7 @@ class UI {
     this.pending = [];
     this.selected = null;
     this.busy = false;
+    this._endRecorded = false;
     this.game.newGame(diff);
     this.endModal.classList.add('hidden');
     this.setMessage(`New ${diff} game. You go first!`);
@@ -180489,10 +180780,13 @@ class UI {
   }
 
   showEnd() {
+    this.recordGameEnd();
     const g = this.game;
     const title = g.winner === 'tie' ? "It's a tie!" : g.winner === 'human' ? '🎉 You win!' : `${this.aiName()} wins`;
     $('#end-title').textContent = title;
-    $('#end-detail').textContent = `Final score — You ${g.scores.human}, ${this.aiName()} ${g.scores.ai}.`;
+    const streak = this.stats.streak;
+    const streakNote = g.winner === 'human' && streak > 1 ? ` · ${streak}-game win streak! 🔥` : '';
+    $('#end-detail').textContent = `Final score — You ${g.scores.human}, ${this.aiName()} ${g.scores.ai}.${streakNote}`;
     this.endModal.classList.remove('hidden');
   }
 }

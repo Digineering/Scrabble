@@ -310,6 +310,18 @@ body.dragging-tile { cursor: grabbing; }
 }
 #btn-stats { white-space: nowrap; }
 
+/* Always-visible stats strip */
+.stat-strip {
+  text-align: center;
+  font-size: .8rem;
+  opacity: .9;
+  padding: 4px 6px;
+  background: var(--panel);
+  border-radius: 8px;
+  line-height: 1.5;
+}
+.stat-strip b { color: #ffd86b; font-weight: 800; }
+
   </style>
 </head>
 <body>
@@ -331,15 +343,11 @@ body.dragging-tile { cursor: grabbing; }
     </header>
 
     <div id="turn-indicator" class="turn">Your turn</div>
+    <div id="stat-strip" class="stat-strip"></div>
 
     <main class="board-wrap">
       <div id="board-viewport" class="board-viewport">
         <div id="board" class="board"></div>
-      </div>
-      <div class="zoom-controls">
-        <button id="zoom-out" aria-label="Zoom out">−</button>
-        <button id="zoom-reset" aria-label="Reset zoom">⤢</button>
-        <button id="zoom-in" aria-label="Zoom in">+</button>
       </div>
     </main>
 
@@ -179567,53 +179575,85 @@ function generateMoves(grid, rack, trie) {
 
 
 // ===== ai.js =====
-// AI opponent. Generates every legal move, then picks one according to the
-// chosen difficulty by sampling from a score-ranked band of candidates.
+// AI opponent. Generates every legal move, re-ranks them according to a
+// randomly chosen "playing style" (so it isn't predictable), then picks from a
+// difficulty band of the ranked list.
 
 const LEVELS = {
-  // Shifted up: the old "easy" is gone — new Easy is tougher than the old
-  // Medium, and every level above is harder again.
-  easy:   { band: [0.14, 0.40], maxScore: 60, allowBingo: true, exchangeBelow: 2 },
-  medium: { band: [0.07, 0.22], maxScore: Infinity, allowBingo: true, exchangeBelow: 4 },
-  hard:   { band: [0.01, 0.06], maxScore: Infinity, allowBingo: true, exchangeBelow: 6 },
-  insane: { band: [0.00, 0.00], maxScore: Infinity, allowBingo: true, exchangeBelow: 8 },
+  // Tougher curve. Lower fraction = stronger (closer to the best move).
+  easy:   { band: [0.08, 0.24], exchangeBelow: 3 },
+  medium: { band: [0.02, 0.10], exchangeBelow: 4 },
+  hard:   { band: [0.004, 0.03], exchangeBelow: 6 },
+  insane: { band: [0.00, 0.00], exchangeBelow: 8 },
 };
+
+// Rough "rack leave" values — how nice the leftover tiles are to keep.
+const LEAVE = {
+  _: 24, S: 7, E: 4, R: 3, A: 2, N: 2, T: 2, I: 1, L: 1, C: 1, H: 1, D: 0,
+  O: 0, M: 0, P: 0, B: 0, G: -1, U: -1, Y: -1, F: -1, K: -1, W: -2, J: -2,
+  V: -4, X: 0, Z: 1, Q: -9,
+};
+
+const STYLES = ['max', 'long', 'leave', 'mix'];
+function randomStyle() { return STYLES[Math.floor(Math.random() * STYLES.length)]; }
+
+// Tiles left in the rack after a move.
+function leaveAfter(rack, placements) {
+  const left = rack.slice();
+  for (const p of placements) {
+    const want = p.blank ? '_' : p.letter;
+    const i = left.indexOf(want);
+    if (i !== -1) left.splice(i, 1);
+  }
+  return left;
+}
+
+function leaveValue(left) {
+  let v = 0;
+  const counts = {};
+  for (const t of left) { v += (LEAVE[t] || 0); counts[t] = (counts[t] || 0) + 1; }
+  if (counts.Q && !counts.U) v -= 6;          // stranded Q
+  for (const t in counts) if (counts[t] > 1) v -= (counts[t] - 1) * 1.5; // duplicates
+  return v;
+}
+
+// Re-rank value for a move under a given style.
+function styleValue(move, rack, style) {
+  const tiles = move.placements.length;
+  switch (style) {
+    case 'long':  return move.score + tiles * 3;                       // loves long words
+    case 'leave': return move.score + 0.8 * leaveValue(leaveAfter(rack, move.placements));
+    case 'mix':   return move.score + 0.4 * leaveValue(leaveAfter(rack, move.placements))
+                          + tiles + Math.random() * 5;                  // unpredictable
+    default:      return move.score;                                    // pure scorer
+  }
+}
 
 function pickFromBand(moves, [lo, hi]) {
   const n = moves.length;
   if (n === 0) return null;
-  let start = Math.floor(lo * n);
-  let end = Math.max(start + 1, Math.ceil(hi * n));
-  start = Math.min(start, n - 1);
-  end = Math.min(end, n);
-  const idx = start + Math.floor(Math.random() * (end - start));
-  return moves[Math.min(idx, n - 1)];
+  let start = Math.min(Math.floor(lo * n), n - 1);
+  const end = Math.min(Math.max(start + 1, Math.ceil(hi * n)), n);
+  return moves[Math.min(start + Math.floor(Math.random() * (end - start)), n - 1)];
 }
 
 /**
- * Decide the AI's action.
- * Returns { type: 'play', move } | { type: 'exchange', count } | { type: 'pass' }.
+ * Decide the AI's action for this turn.
+ * Returns { type:'play', move } | { type:'exchange', count } | { type:'pass' }.
  */
-function chooseMove(grid, rack, trie, level = 'medium') {
+function chooseMove(grid, rack, trie, level = 'medium', style = 'max') {
   const cfg = LEVELS[level] || LEVELS.medium;
-  let moves = generateMoves(grid, rack, trie);
-
-  // Difficulty filters.
-  if (!cfg.allowBingo) moves = moves.filter((m) => m.placements.length < 7);
-  if (cfg.maxScore !== Infinity) {
-    const capped = moves.filter((m) => m.score <= cfg.maxScore);
-    if (capped.length) moves = capped; // only enforce the cap if it leaves options
-  }
-
-  moves.sort((a, b) => b.score - a.score);
-
+  const moves = generateMoves(grid, rack, trie);
   if (moves.length === 0) {
-    return { type: 'pass' };
+    return rack.length ? { type: 'exchange', count: Math.min(rack.length, 5) } : { type: 'pass' };
   }
+
+  for (const m of moves) m._val = styleValue(m, rack, style);
+  moves.sort((a, b) => b._val - a._val);
 
   const choice = level === 'insane' ? moves[0] : pickFromBand(moves, cfg.band);
 
-  // Weak racks: lower levels would rather swap tiles than dump a 3-pointer.
+  // Weak best option: swap tiles instead of dumping points (if the bag allows).
   if (choice.score < cfg.exchangeBelow) {
     return { type: 'exchange', count: Math.min(rack.length, 5) };
   }
@@ -179730,7 +179770,8 @@ class Game {
   // Run the AI's turn. Returns a description for the UI.
   runAI() {
     if (this.gameOver) return null;
-    const decision = chooseMove(this.grid, this.racks.ai, this.trie, this.difficulty);
+    // A fresh style each turn keeps the bot from feeling one-note.
+    const decision = chooseMove(this.grid, this.racks.ai, this.trie, this.difficulty, randomStyle());
     if (decision.type === 'play') {
       const res = this.applyMove('ai', decision.move.placements);
       return { type: 'play', placements: decision.move.placements, word: res.main, score: res.score };
@@ -180229,10 +180270,8 @@ class UI {
   }
 
   initZoom() {
+    // Pinch (mobile) / wheel (desktop) zoom only — no on-screen buttons.
     this.zoom = enableBoardZoom(this.viewportEl, this.boardEl);
-    document.querySelector('#zoom-in').onclick = () => this.zoom.zoomIn();
-    document.querySelector('#zoom-out').onclick = () => this.zoom.zoomOut();
-    document.querySelector('#zoom-reset').onclick = () => this.zoom.reset();
   }
 
   cacheEls() {
@@ -180245,6 +180284,7 @@ class UI {
     this.aiScoreEl = $('#ai-score');
     this.aiLabelEl = $('#ai-label');
     this.bagCountEl = $('#bag-count');
+    this.statStripEl = $('#stat-strip');
     this.blankModal = $('#blank-modal');
     this.endModal = $('#end-modal');
   }
@@ -180764,6 +180804,15 @@ class UI {
     if (this.game.gameOver) turnEl.textContent = 'Game over';
     else if (this.busy) turnEl.textContent = this.aiName() + '’s turn';
     else turnEl.textContent = this.game.turn === 'human' ? 'Your turn' : this.aiName() + '’s turn';
+
+    // Always-visible stats strip.
+    const s = this.stats;
+    if (s && this.statStripEl) {
+      const best = s.bestWord.score ? `${s.bestWord.word} (${s.bestWord.score})` : '—';
+      this.statStripEl.innerHTML =
+        `🏆 Best: <b>${best}</b> · 🔥 Streak: <b>${s.streak}</b> · ` +
+        `🥇 Best game: <b>${s.bestGame}</b> · 🎮 Games: <b>${s.games}</b>`;
+    }
 
     // Recent log (last 6 entries).
     this.logEl.innerHTML = this.game.log.slice(-6).reverse().map((e) => {

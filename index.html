@@ -315,7 +315,7 @@ body.dragging-tile { cursor: grabbing; }
       <h1>Scrabble</h1>
       <div class="scores">
         <div class="score you">
-          <span class="lbl">You</span>
+          <span class="lbl" data-i18n="youLabel">You</span>
           <span id="human-score" class="val">0</span>
         </div>
         <div class="score bot">
@@ -339,31 +339,31 @@ body.dragging-tile { cursor: grabbing; }
     <div id="rack" class="rack"></div>
 
     <div class="controls">
-      <button id="btn-play" class="primary">Play</button>
-      <button id="btn-recall">Recall</button>
-      <button id="btn-shuffle">Shuffle</button>
-      <button id="btn-pass">Pass</button>
-      <button id="btn-exchange">Swap</button>
+      <button id="btn-play" class="primary" data-i18n="play">Play</button>
+      <button id="btn-recall" data-i18n="recall">Recall</button>
+      <button id="btn-shuffle" data-i18n="shuffle">Shuffle</button>
+      <button id="btn-pass" data-i18n="pass">Pass</button>
+      <button id="btn-exchange" data-i18n="swap">Swap</button>
     </div>
 
     <div class="meta">
-      <label>Difficulty
+      <label><span data-i18n="difficultyLabel">Difficulty</span>
         <select id="difficulty">
-          <option value="easy">Easy</option>
-          <option value="medium" selected>Medium</option>
-          <option value="hard">Hard</option>
-          <option value="insane">Insane</option>
+          <option value="easy" data-i18n="diffEasy">Easy</option>
+          <option value="medium" selected data-i18n="diffMedium">Medium</option>
+          <option value="hard" data-i18n="diffHard">Hard</option>
+          <option value="insane" data-i18n="diffInsane">Insane</option>
         </select>
       </label>
-      <label>Strategy
+      <label><span data-i18n="strategyLabel">Strategy</span>
         <select id="bot-strategy">
-          <option value="one">1 · Varied</option>
-          <option value="two">2 · No clumping</option>
+          <option value="one" data-i18n="strat1">1 · Varied</option>
+          <option value="two" data-i18n="strat2">2 · No clumping</option>
         </select>
       </label>
-      <button id="btn-newgame">New Game</button>
-      <button id="btn-stats">📊 Stats</button>
-      <span class="bag">Bag: <b id="bag-count">0</b></span>
+      <button id="btn-newgame" data-i18n="newGame">New Game</button>
+      <button id="btn-stats" data-i18n="stats">📊 Stats</button>
+      <span class="bag"><span data-i18n="bagLabel">Bag:</span> <b id="bag-count">0</b></span>
     </div>
 
     <ul id="log" class="log"></ul>
@@ -374,26 +374,26 @@ body.dragging-tile { cursor: grabbing; }
     <div class="modal-card def-card">
       <h2 id="def-word"></h2>
       <div id="def-body" class="def-body"></div>
-      <div class="def-hint">tap to close</div>
+      <div class="def-hint" data-i18n="tapClose">tap to close</div>
     </div>
   </div>
 
   <!-- Blank tile chooser -->
   <div id="blank-modal" class="modal hidden">
     <div class="modal-card">
-      <h2>Choose a letter for the blank</h2>
+      <h2 data-i18n="chooseBlank">Choose a letter for the blank</h2>
       <div class="blank-grid"></div>
-      <button class="blank-cancel">Cancel</button>
+      <button class="blank-cancel" data-i18n="cancel">Cancel</button>
     </div>
   </div>
 
   <!-- Stats -->
   <div id="stats-modal" class="modal hidden">
     <div class="modal-card">
-      <h2>📊 Your Stats</h2>
+      <h2 data-i18n="statsTitle">📊 Your Stats</h2>
       <ul id="stats-list" class="stats-list"></ul>
-      <button id="stats-close" class="primary">Close</button>
-      <button id="stats-reset" class="stats-reset">Reset stats</button>
+      <button id="stats-close" class="primary" data-i18n="close">Close</button>
+      <button id="stats-reset" class="stats-reset" data-i18n="resetStats">Reset stats</button>
     </div>
   </div>
 
@@ -402,7 +402,7 @@ body.dragging-tile { cursor: grabbing; }
     <div class="modal-card">
       <h2 id="end-title">Game over</h2>
       <p id="end-detail"></p>
-      <button id="end-newgame" class="primary">Play again</button>
+      <button id="end-newgame" class="primary" data-i18n="playAgain">Play again</button>
     </div>
   </div>
   <script>
@@ -194876,8 +194876,9 @@ function chooseMove(grid, rack, trie, level = 'medium', opts = {}) {
     if (human.length) moves = human;
   }
 
-  // Once the per-game clump budget is spent, forbid new clump plays outright.
-  if (antiClump && budget <= 0) {
+  // Hard cap: once the per-game clump budget is spent, forbid new clump plays
+  // on ANY strategy (Strategy Two additionally penalises them below).
+  if (budget <= 0) {
     const clean = moves.filter((m) => !isClumpy(m));
     if (clean.length) moves = clean;
   }
@@ -194909,6 +194910,9 @@ function shuffle(arr) {
 
 const rackValue = (rack) => rack.reduce((s, t) => s + LETTER_VALUES[t], 0);
 
+// Max "clump" plays the bot is allowed per game, by difficulty.
+const CLUMP_BUDGET = { easy: 1, medium: 2, hard: 4, insane: 4 };
+
 class Game {
   constructor(trie, common = null) {
     this.trie = trie;
@@ -194931,7 +194935,7 @@ class Game {
     this.winner = null;
     this.log = [];
     this.lastMoveCells = [];
-    this.clumpBudget = 4;        // Strategy Two: at most ~4 clump plays per game
+    this.clumpBudget = CLUMP_BUDGET[difficulty] ?? 2; // clump cap scales with level
   }
 
   draw(n) {
@@ -195167,6 +195171,88 @@ function enableBoardZoom(viewport, board) {
 
 const $ = (sel) => document.querySelector(sel);
 
+// Interface strings. English keeps the exact wording it had before; Afrikaans
+// is selected when the build sets window.__LANG = 'af'.
+const I18N = {
+  en: {
+    play: 'Play', recall: 'Recall', shuffle: 'Shuffle', pass: 'Pass', swap: 'Swap', swapConfirm: 'Confirm Swap',
+    newGame: 'New Game', stats: '📊 Stats', bagLabel: 'Bag:', difficultyLabel: 'Difficulty',
+    strategyLabel: 'Strategy', youLabel: 'You',
+    diffEasy: 'Easy', diffMedium: 'Medium', diffHard: 'Hard', diffInsane: 'Insane',
+    strat1: '1 · Varied', strat2: '2 · No clumping',
+    chooseBlank: 'Choose a letter for the blank', cancel: 'Cancel',
+    statsTitle: '📊 Your Stats', close: 'Close', resetStats: 'Reset stats', playAgain: 'Play again', tapClose: 'tap to close',
+    yourTurn: 'Your turn', gameOver: 'Game over',
+    turnOf: (n) => `${n}’s turn`,
+    thinking: (n) => `${n} is thinking…`,
+    botName: (d) => `Bot (${d})`,
+    diffName: { easy: 'Easy', medium: 'Medium', hard: 'Hard', insane: 'Insane' },
+    newGameMsg: (d) => `New ${d} game. You go first! · Tip: tap any word on the board for its meaning.`,
+    played: (w, s, bingo, extra) => `✅ ${w} — ${s} pts${bingo ? ' · BINGO! +50' : ''}${extra}`,
+    botPlayed: (n, w, s, bingo) => `${n} played ${w} for ${s}${bingo ? ' · BINGO!' : ''}`,
+    botSwapped: (n, c) => `${n} swapped ${c} tile(s).`,
+    botPassed: (n) => `${n} passed.`,
+    youPassed: 'You passed.', passConfirm: 'Pass your turn?',
+    placeFirst: 'Place some tiles first.',
+    swapHint: 'Select tiles to swap, then press Swap again.',
+    swapCancelled: 'Exchange cancelled.', swapped: (c) => `Swapped ${c} tile(s).`,
+    bagEmptySwap: "Bag is empty — can't exchange.",
+    win: '🎉 You win!', lose: (n) => `${n} wins`, tie: "It's a tie!",
+    finalScore: (h, n, a) => `Final score — You ${h}, ${n} ${a}.`,
+    streakNote: (s) => ` · ${s}-game win streak! 🔥`,
+    strip: (b, st, bg, g) => `🏆 Best: <b>${b}</b> · 🔥 Streak: <b>${st}</b> · 🥇 Best game: <b>${bg}</b> · 🎮 Games: <b>${g}</b>`,
+    stat: { games: 'Games played', wins: 'Wins', losses: 'Losses', streak: 'Current win streak', best: 'Best win streak', bestWord: 'Best word', bestTurn: 'Best single turn', bestGame: 'Best game score', bingos: 'Bingos (all 7 tiles)', words: 'Words played' },
+    resetConfirm: 'Reset all your stats?',
+    strat1set: 'Bot set to Strategy 1 — varied play.',
+    strat2set: 'Bot set to Strategy 2 — less clumping, more open words.',
+    reason: {}, notInDict: (w) => `${w} isn't in the dictionary.`,
+  },
+  af: {
+    play: 'Speel', recall: 'Trek terug', shuffle: 'Skommel', pass: 'Pas', swap: 'Ruil', swapConfirm: 'Bevestig ruil',
+    newGame: 'Nuwe spel', stats: '📊 Statistiek', bagLabel: 'Sak:', difficultyLabel: 'Moeilikheid',
+    strategyLabel: 'Strategie', youLabel: 'Jy',
+    diffEasy: 'Maklik', diffMedium: 'Middel', diffHard: 'Moeilik', diffInsane: 'Waansinnig',
+    strat1: '1 · Gevarieerd', strat2: '2 · Geen klontering',
+    chooseBlank: "Kies 'n letter vir die blanko", cancel: 'Kanselleer',
+    statsTitle: '📊 Jou Statistiek', close: 'Sluit', resetStats: 'Herstel statistiek', playAgain: 'Speel weer', tapClose: 'tik om te sluit',
+    yourTurn: 'Jou beurt', gameOver: 'Spel verby',
+    turnOf: (n) => `${n} se beurt`,
+    thinking: (n) => `${n} dink…`,
+    botName: (d) => `Bot (${d})`,
+    diffName: { easy: 'Maklik', medium: 'Middel', hard: 'Moeilik', insane: 'Waansinnig' },
+    newGameMsg: (d) => `Nuwe ${d}-spel. Jy speel eerste!`,
+    played: (w, s, bingo, extra) => `✅ ${w} — ${s} pte${bingo ? ' · BINGO! +50' : ''}${extra}`,
+    botPlayed: (n, w, s, bingo) => `${n} het ${w} gespeel vir ${s}${bingo ? ' · BINGO!' : ''}`,
+    botSwapped: (n, c) => `${n} het ${c} teël(s) geruil.`,
+    botPassed: (n) => `${n} het gepas.`,
+    youPassed: 'Jy het gepas.', passConfirm: 'Gee jou beurt verby?',
+    placeFirst: "Plaas eers 'n paar teëls.",
+    swapHint: 'Kies teëls om te ruil, druk dan weer Ruil.',
+    swapCancelled: 'Ruil gekanselleer.', swapped: (c) => `${c} teël(s) geruil.`,
+    bagEmptySwap: 'Sak is leeg — kan nie ruil nie.',
+    win: '🎉 Jy wen!', lose: (n) => `${n} wen`, tie: 'Dis gelykop!',
+    finalScore: (h, n, a) => `Eindtelling — Jy ${h}, ${n} ${a}.`,
+    streakNote: (s) => ` · ${s}-spel wenstreep! 🔥`,
+    strip: (b, st, bg, g) => `🏆 Beste: <b>${b}</b> · 🔥 Streep: <b>${st}</b> · 🥇 Beste spel: <b>${bg}</b> · 🎮 Spele: <b>${g}</b>`,
+    stat: { games: 'Spele gespeel', wins: 'Oorwinnings', losses: 'Verliese', streak: 'Huidige wenstreep', best: 'Beste wenstreep', bestWord: 'Beste woord', bestTurn: 'Beste enkele beurt', bestGame: 'Beste speltelling', bingos: "Bingo's (al 7 teëls)", words: 'Woorde gespeel' },
+    resetConfirm: 'Herstel al jou statistiek?',
+    strat1set: 'Bot op Strategie 1 — gevarieerde spel.',
+    strat2set: 'Bot op Strategie 2 — minder klontering, meer oop woorde.',
+    reason: {
+      'No tiles placed.': 'Geen teëls geplaas nie.',
+      'Tile off board.': 'Teël buite die bord.',
+      'Square already filled.': 'Blok is reeds vol.',
+      'Two tiles on one square.': 'Twee teëls op een blok.',
+      'First word must cover the centre star.': 'Eerste woord moet die middelster dek.',
+      'Tiles must be in a single row or column.': 'Teëls moet in een ry of kolom wees.',
+      'Gap in your word.': 'Gaping in jou woord.',
+      'A word must be at least two letters.': "'n Woord moet minstens twee letters wees.",
+      'New word must connect to the board.': 'Nuwe woord moet aan die bord raak.',
+    },
+    notInDict: (w) => `${w} is nie in die woordeboek nie.`,
+  },
+};
+
 
 class UI {
   constructor(game) {
@@ -195176,13 +195262,33 @@ class UI {
     this.exchangeMode = false;
     this.exchangeSel = new Set();
     this.busy = false;          // AI thinking / animating
+    this.lang = (typeof globalThis !== 'undefined' && globalThis.__LANG) || 'en';
+    this.L = I18N[this.lang] || I18N.en;
     this.cacheEls();
+    this.applyStrings();
     this.bindControls();
     this.buildBoard();
     this.initZoom();
     this.initStats();
     this.initStrategy();
     this.render();
+  }
+
+  // Set all static labels (elements carrying data-i18n) from the string table.
+  applyStrings() {
+    for (const el of document.querySelectorAll('[data-i18n]')) {
+      const v = this.L[el.dataset.i18n];
+      if (typeof v === 'string') el.textContent = v;
+    }
+  }
+
+  // Translate an engine "reason" string (English) for messages.
+  tReason(reason) {
+    if (this.lang === 'en') return reason;
+    if (this.L.reason[reason]) return this.L.reason[reason];
+    const m = /^(.+) isn't in the dictionary\.$/.exec(reason);
+    if (m) return this.L.notInDict(m[1]);
+    return reason;
   }
 
   initStrategy() {
@@ -195195,9 +195301,7 @@ class UI {
       sel.onchange = (e) => {
         this.game.botStrategy = e.target.value;
         try { localStorage.setItem('bot_strategy', e.target.value); } catch {}
-        this.setMessage(e.target.value === 'two'
-          ? 'Bot set to Strategy 2 — less clumping, more open words.'
-          : 'Bot set to Strategy 1 — varied play.');
+        this.setMessage(e.target.value === 'two' ? this.L.strat2set : this.L.strat1set);
       };
     }
   }
@@ -195269,7 +195373,7 @@ class UI {
     $('#btn-stats').onclick = () => this.openStats();
     $('#stats-close').onclick = () => $('#stats-modal').classList.add('hidden');
     $('#stats-reset').onclick = () => {
-      if (confirm('Reset all your stats?')) { this.stats = this.defaultStats(); this.saveStats(); this.openStats(); }
+      if (confirm(this.L.resetConfirm)) { this.stats = this.defaultStats(); this.saveStats(); this.openStats(); }
     };
   }
 
@@ -195317,17 +195421,18 @@ class UI {
 
   openStats() {
     const s = this.stats;
+    const t = this.L.stat;
     const rows = [
-      ['Games played', s.games],
-      ['Wins', s.wins],
-      ['Losses', s.losses],
-      ['Current win streak', s.streak],
-      ['Best win streak', s.bestStreak],
-      ['Best word', s.bestWord.score ? `${s.bestWord.word} (${s.bestWord.score})` : '—'],
-      ['Best single turn', s.bestTurn],
-      ['Best game score', s.bestGame],
-      ['Bingos (all 7 tiles)', s.bingos],
-      ['Words played', s.words],
+      [t.games, s.games],
+      [t.wins, s.wins],
+      [t.losses, s.losses],
+      [t.streak, s.streak],
+      [t.best, s.bestStreak],
+      [t.bestWord, s.bestWord.score ? `${s.bestWord.word} (${s.bestWord.score})` : '—'],
+      [t.bestTurn, s.bestTurn],
+      [t.bestGame, s.bestGame],
+      [t.bingos, s.bingos],
+      [t.words, s.words],
     ];
     $('#stats-list').innerHTML = rows.map(([k, v]) => `<li><span>${k}</span><b>${v}</b></li>`).join('');
     $('#stats-modal').classList.remove('hidden');
@@ -195587,8 +195692,9 @@ class UI {
   }
 
   onBoardCell(r, c) {
-    // Tapping a placed tile looks up its word(s) — allowed any time.
-    if (this.game.grid[r][c]) { this.showDefinitions(this.wordsAt(r, c)); return; }
+    // Tapping a placed tile looks up its word(s) — English only (the dictionary
+    // API doesn't cover Afrikaans).
+    if (this.game.grid[r][c]) { if (this.lang === 'en') this.showDefinitions(this.wordsAt(r, c)); return; }
     if (this.busy || this.game.gameOver || this.exchangeMode) return;
     const pendingHere = this.pending.find((p) => p.r === r && p.c === c);
     if (pendingHere) { this.recallTile(pendingHere); return; }
@@ -195637,16 +195743,16 @@ class UI {
 
   playMove() {
     if (this.busy || this.game.gameOver) return;
-    if (this.pending.length === 0) { this.setMessage('Place some tiles first.'); return; }
+    if (this.pending.length === 0) { this.setMessage(this.L.placeFirst); return; }
     const placements = this.pending.map(({ r, c, letter, blank }) => ({ r, c, letter, blank }));
     const check = analyze(this.game.grid, placements, this.game.trie);
-    if (!check.ok) { this.setMessage('⛔ ' + check.reason); return; }
+    if (!check.ok) { this.setMessage('⛔ ' + this.tReason(check.reason)); return; }
 
     const res = this.game.applyMove('human', placements);
     this.pending = [];
     this.selected = null;
     const extra = res.words.length > 1 ? ` (${res.words.map((w) => w.word).join(', ')})` : '';
-    this.setMessage(`✅ ${res.main} — ${res.score} pts${res.placements.length === 7 ? ' · BINGO! +50' : ''}${extra}`);
+    this.setMessage(this.L.played(res.main, res.score, res.placements.length === 7, extra));
     this.render();
     this.recordPlay(res);
     this.afterHuman();
@@ -195654,10 +195760,10 @@ class UI {
 
   passTurn() {
     if (this.busy || this.game.gameOver) return;
-    if (!confirm('Pass your turn?')) return;
+    if (!confirm(this.L.passConfirm)) return;
     this.recallAll();
     this.game.pass('human');
-    this.setMessage('You passed.');
+    this.setMessage(this.L.youPassed);
     this.render();
     this.afterHuman();
   }
@@ -195665,19 +195771,19 @@ class UI {
   toggleExchange() {
     if (this.busy || this.game.gameOver) return;
     if (!this.exchangeMode) {
-      if (this.game.bag.length < 1) { this.setMessage('Bag is empty — can\'t exchange.'); return; }
+      if (this.game.bag.length < 1) { this.setMessage(this.L.bagEmptySwap); return; }
       this.recallAll();
       this.exchangeMode = true;
       this.exchangeSel.clear();
-      this.setMessage('Select tiles to swap, then press Exchange again.');
-      $('#btn-exchange').textContent = 'Confirm Swap';
+      this.setMessage(this.L.swapHint);
+      $('#btn-exchange').textContent = this.L.swapConfirm;
     } else {
       const tiles = [...this.exchangeSel].map((i) => this.game.racks.human[i]);
       this.exitExchange();
-      if (tiles.length === 0) { this.setMessage('Exchange cancelled.'); return; }
+      if (tiles.length === 0) { this.setMessage(this.L.swapCancelled); return; }
       const res = this.game.exchange('human', tiles);
-      if (!res.ok) { this.setMessage('⛔ ' + res.reason); this.render(); return; }
-      this.setMessage(`Swapped ${res.count} tile(s).`);
+      if (!res.ok) { this.setMessage('⛔ ' + this.tReason(res.reason)); this.render(); return; }
+      this.setMessage(this.L.swapped(res.count));
       this.render();
       this.afterHuman();
     }
@@ -195687,7 +195793,7 @@ class UI {
   exitExchange() {
     this.exchangeMode = false;
     this.exchangeSel.clear();
-    $('#btn-exchange').textContent = 'Swap';
+    $('#btn-exchange').textContent = this.L.swap;
   }
 
   afterHuman() {
@@ -195703,11 +195809,11 @@ class UI {
     const result = this.game.runAI();
     let msg;
     if (result.type === 'play') {
-      msg = `${this.aiName()} played ${result.word} for ${result.score}${result.placements.length === 7 ? ' · BINGO!' : ''}`;
+      msg = this.L.botPlayed(this.aiName(), result.word, result.score, result.placements.length === 7);
     } else if (result.type === 'exchange') {
-      msg = `${this.aiName()} swapped ${result.count} tile(s).`;
+      msg = this.L.botSwapped(this.aiName(), result.count);
     } else {
-      msg = `${this.aiName()} passed.`;
+      msg = this.L.botPassed(this.aiName());
     }
     this.busy = false;
     if (this.game.gameOver) { this.render(); this.setMessage(msg); this.showEnd(); return; }
@@ -195725,13 +195831,12 @@ class UI {
     this._endRecorded = false;
     this.game.newGame(diff);
     this.endModal.classList.add('hidden');
-    this.setMessage(`New ${diff} game. You go first! · Tip: tap any word on the board for its meaning.`);
+    this.setMessage(this.L.newGameMsg(this.L.diffName[diff] || diff));
     this.render();
   }
 
   aiName() {
-    const d = this.game.difficulty;
-    return 'Bot (' + d.charAt(0).toUpperCase() + d.slice(1) + ')';
+    return this.L.botName(this.L.diffName[this.game.difficulty] || this.game.difficulty);
   }
 
   // ---- Blank chooser ------------------------------------------------------
@@ -195868,17 +195973,15 @@ class UI {
     document.body.classList.toggle('your-turn', this.game.turn === 'human' && !this.busy && !this.game.gameOver);
 
     const turnEl = $('#turn-indicator');
-    if (this.game.gameOver) turnEl.textContent = 'Game over';
-    else if (this.busy) turnEl.textContent = this.aiName() + '’s turn';
-    else turnEl.textContent = this.game.turn === 'human' ? 'Your turn' : this.aiName() + '’s turn';
+    if (this.game.gameOver) turnEl.textContent = this.L.gameOver;
+    else if (this.busy) turnEl.textContent = this.L.turnOf(this.aiName());
+    else turnEl.textContent = this.game.turn === 'human' ? this.L.yourTurn : this.L.turnOf(this.aiName());
 
     // Always-visible stats strip.
     const s = this.stats;
     if (s && this.statStripEl) {
       const best = s.bestWord.score ? `${s.bestWord.word} (${s.bestWord.score})` : '—';
-      this.statStripEl.innerHTML =
-        `🏆 Best: <b>${best}</b> · 🔥 Streak: <b>${s.streak}</b> · ` +
-        `🥇 Best game: <b>${s.bestGame}</b> · 🎮 Games: <b>${s.games}</b>`;
+      this.statStripEl.innerHTML = this.L.strip(best, s.streak, s.bestGame, s.games);
     }
 
     // Recent log (last 6 entries).
@@ -195898,11 +196001,11 @@ class UI {
   showEnd() {
     this.recordGameEnd();
     const g = this.game;
-    const title = g.winner === 'tie' ? "It's a tie!" : g.winner === 'human' ? '🎉 You win!' : `${this.aiName()} wins`;
+    const title = g.winner === 'tie' ? this.L.tie : g.winner === 'human' ? this.L.win : this.L.lose(this.aiName());
     $('#end-title').textContent = title;
     const streak = this.stats.streak;
-    const streakNote = g.winner === 'human' && streak > 1 ? ` · ${streak}-game win streak! 🔥` : '';
-    $('#end-detail').textContent = `Final score — You ${g.scores.human}, ${this.aiName()} ${g.scores.ai}.${streakNote}`;
+    const streakNote = g.winner === 'human' && streak > 1 ? this.L.streakNote(streak) : '';
+    $('#end-detail').textContent = this.L.finalScore(g.scores.human, this.aiName(), g.scores.ai) + streakNote;
     this.endModal.classList.remove('hidden');
   }
 }

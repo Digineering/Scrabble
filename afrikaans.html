@@ -135334,6 +135334,43 @@ class Game {
     this.turn = this.turn === 'human' ? 'ai' : 'human';
   }
 
+  // Compact, JSON-safe snapshot of the whole game (for saving/restoring).
+  serialize() {
+    return {
+      grid: this.grid.map((row) => row.map((c) => (c ? [c.letter, c.blank ? 1 : 0] : 0))),
+      bag: this.bag,
+      racks: this.racks,
+      scores: this.scores,
+      turn: this.turn,
+      difficulty: this.difficulty,
+      botStrategy: this.botStrategy,
+      clumpBudget: this.clumpBudget,
+      scorelessStreak: this.scorelessStreak,
+      gameOver: this.gameOver,
+      winner: this.winner,
+      endReason: this.endReason,
+      log: this.log,
+      lastMoveCells: this.lastMoveCells,
+    };
+  }
+
+  restore(s) {
+    this.grid = s.grid.map((row) => row.map((c) => (c ? { letter: c[0], blank: !!c[1] } : null)));
+    this.bag = s.bag;
+    this.racks = s.racks;
+    this.scores = s.scores;
+    this.turn = s.turn;
+    this.difficulty = s.difficulty || 'medium';
+    this.botStrategy = s.botStrategy || this.botStrategy;
+    this.clumpBudget = s.clumpBudget != null ? s.clumpBudget : 4;
+    this.scorelessStreak = s.scorelessStreak || 0;
+    this.gameOver = !!s.gameOver;
+    this.winner = s.winner || null;
+    this.endReason = s.endReason;
+    this.log = s.log || [];
+    this.lastMoveCells = s.lastMoveCells || [];
+  }
+
   // Run the AI's turn. Returns a description for the UI.
   runAI() {
     if (this.gameOver) return null;
@@ -135513,6 +135550,7 @@ const I18N = {
     botName: (d) => `Bot (${d})`,
     diffName: { easy: 'Easy', medium: 'Medium', hard: 'Hard', insane: 'Insane' },
     newGameMsg: (d) => `New ${d} game. You go first! · Tip: tap any word on the board for its meaning.`,
+    resumed: 'Welcome back — your game was restored.',
     played: (w, s, bingo, extra) => `✅ ${w} — ${s} pts${bingo ? ' · BINGO! +50' : ''}${extra}`,
     botPlayed: (n, w, s, bingo) => `${n} played ${w} for ${s}${bingo ? ' · BINGO!' : ''}`,
     botSwapped: (n, c) => `${n} swapped ${c} tile(s).`,
@@ -135546,6 +135584,7 @@ const I18N = {
     botName: (d) => `Bot (${d})`,
     diffName: { easy: 'Maklik', medium: 'Middel', hard: 'Moeilik', insane: 'Waansinnig' },
     newGameMsg: (d) => `Nuwe ${d}-spel. Jy speel eerste!`,
+    resumed: 'Welkom terug — jou spel is herstel.',
     played: (w, s, bingo, extra) => `✅ ${w} — ${s} pte${bingo ? ' · BINGO! +50' : ''}${extra}`,
     botPlayed: (n, w, s, bingo) => `${n} het ${w} gespeel vir ${s}${bingo ? ' · BINGO!' : ''}`,
     botSwapped: (n, c) => `${n} het ${c} teël(s) geruil.`,
@@ -135596,7 +135635,54 @@ class UI {
     this.initZoom();
     this.initStats();
     this.initStrategy();
+    this.boot();
+  }
+
+  // ---- Save / restore the in-progress game (localStorage) -----------------
+
+  saveKey() { return 'scrabble_save_' + this.lang; }
+
+  saveGame() {
+    try {
+      if (this.game.gameOver) { localStorage.removeItem(this.saveKey()); return; }
+      const payload = { v: 1, game: this.game.serialize(), pending: this.pending };
+      localStorage.setItem(this.saveKey(), JSON.stringify(payload));
+    } catch {}
+  }
+
+  loadGame() {
+    try {
+      const raw = localStorage.getItem(this.saveKey());
+      if (!raw) return false;
+      const p = JSON.parse(raw);
+      if (!p || p.v !== 1 || !p.game) return false;
+      this.game.restore(p.game);
+      this.pending = Array.isArray(p.pending) ? p.pending : [];
+      return true;
+    } catch { return false; }
+  }
+
+  // On startup: resume a saved game if there is one, else start fresh.
+  boot() {
+    const restored = this.loadGame();
+    if (restored) {
+      const ds = $('#difficulty'); if (ds) ds.value = this.game.difficulty;
+      const ss = $('#bot-strategy'); if (ss) ss.value = this.game.botStrategy;
+      this.pendingDifficulty = this.game.difficulty;
+      this.render();
+      this.setMessage(this.L.resumed);
+      if (this.game.turn === 'ai' && !this.game.gameOver) this.scheduleAI();
+    } else {
+      this.render();
+      this.setMessage(this.L.newGameMsg(this.L.diffName[this.game.difficulty] || this.game.difficulty));
+    }
+  }
+
+  scheduleAI() {
+    this.busy = true;
     this.render();
+    this.setMessage(this.L.thinking(this.aiName()), true);
+    setTimeout(() => this.runAI(), 500 + Math.random() * 600);
   }
 
   // Set all static labels (elements carrying data-i18n) from the string table.
@@ -136124,10 +136210,7 @@ class UI {
   afterHuman() {
     if (this.game.gameOver) { this.render(); this.showEnd(); return; }
     this.game.nextTurn();
-    this.busy = true;
-    this.render();
-    this.setMessage(`${this.aiName()} is thinking…`, true);
-    setTimeout(() => this.runAI(), 500 + Math.random() * 600);
+    this.scheduleAI();
   }
 
   runAI() {
@@ -136202,6 +136285,7 @@ class UI {
     this.renderBoard();
     this.renderRack();
     this.renderStatus();
+    this.saveGame();
   }
 
   // Live feedback for the tiles being placed: which form valid words, and the

@@ -305,6 +305,24 @@ body.dragging-tile { cursor: grabbing; }
 }
 .def-text { font-size: .92rem; line-height: 1.4; }
 
+/* Tiles-left tracker */
+.tiles-wrap { background: var(--panel); border-radius: 8px; padding: 6px 8px; }
+.tiles-label { font-size: .72rem; opacity: .75; text-align: center; margin-bottom: 5px; }
+.tiles-left {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 4px;
+}
+.tl-chip {
+  display: flex; flex-direction: column; align-items: center;
+  background: #20392b; border-radius: 5px; padding: 3px 0;
+  line-height: 1.05;
+}
+.tl-chip b { font-size: .82rem; font-weight: 800; }
+.tl-chip i { font-size: .7rem; font-style: normal; opacity: .9; color: #ffd86b; }
+.tl-chip.zero { opacity: .3; }
+.tl-chip.zero i { color: #e88; }
+
   </style>
 </head>
 <body>
@@ -364,6 +382,11 @@ body.dragging-tile { cursor: grabbing; }
       <button id="btn-newgame" data-i18n="newGame">New Game</button>
       <button id="btn-stats" data-i18n="stats">📊 Stats</button>
       <span class="bag"><span data-i18n="bagLabel">Bag:</span> <b id="bag-count">0</b></span>
+    </div>
+
+    <div class="tiles-wrap">
+      <div class="tiles-label" data-i18n="tilesLeftLabel">Tiles left (bag + opponent)</div>
+      <div id="tiles-left" class="tiles-left"></div>
     </div>
 
     <ul id="log" class="log"></ul>
@@ -284176,11 +284199,12 @@ function generateMoves(grid, rack, trie) {
 // difficulty band of the ranked list.
 
 const LEVELS = {
-  // Tougher curve. Lower fraction = stronger (closer to the best move).
+  // Easy/Medium are humanised (common words) by the caller; Hard/Insane get the
+  // full dictionary, so the bands here bite much harder for them.
   easy:   { band: [0.08, 0.24], exchangeBelow: 3 },
   medium: { band: [0.02, 0.10], exchangeBelow: 4 },
-  hard:   { band: [0.004, 0.03], exchangeBelow: 6 },
-  insane: { band: [0.00, 0.00], exchangeBelow: 8 },
+  hard:   { band: [0.00, 0.025], exchangeBelow: 6 },
+  insane: { band: [0.00, 0.00], exchangeBelow: 10 },
 };
 
 // Rough "rack leave" values — how nice the leftover tiles are to keep.
@@ -284306,7 +284330,7 @@ function shuffle(arr) {
 const rackValue = (rack) => rack.reduce((s, t) => s + LETTER_VALUES[t], 0);
 
 // Max "clump" plays the bot is allowed per game, by difficulty.
-const CLUMP_BUDGET = { easy: 1, medium: 2, hard: 4, insane: 4 };
+const CLUMP_BUDGET = { easy: 1, medium: 2, hard: 6, insane: 99 };
 
 class Game {
   constructor(trie, common = null) {
@@ -284444,9 +284468,12 @@ class Game {
   // Run the AI's turn. Returns a description for the UI.
   runAI() {
     if (this.gameOver) return null;
+    // Easy/Medium stay humanised (common words); Hard/Insane get the full
+    // dictionary so they play the strong obscure words too.
+    const humanised = this.difficulty === 'easy' || this.difficulty === 'medium';
     const decision = chooseMove(this.grid, this.racks.ai, this.trie, this.difficulty, {
       style: randomStyle(),          // a fresh style each turn — not one-note
-      common: this.common,           // humanised vocabulary
+      common: humanised ? this.common : null,
       antiClump: this.botStrategy === 'two',
       clumpBudget: this.clumpBudget,
     });
@@ -284621,6 +284648,7 @@ const I18N = {
     diffName: { easy: 'Easy', medium: 'Medium', hard: 'Hard', insane: 'Insane' },
     newGameMsg: (d) => `New ${d} game. You go first! · Tip: tap any word on the board for its meaning.`,
     resumed: 'Welcome back — your game was restored.',
+    tilesLeftLabel: 'Tiles left (bag + opponent)',
     played: (w, s, bingo, extra) => `✅ ${w} — ${s} pts${bingo ? ' · BINGO! +50' : ''}${extra}`,
     botPlayed: (n, w, s, bingo) => `${n} played ${w} for ${s}${bingo ? ' · BINGO!' : ''}`,
     botSwapped: (n, c) => `${n} swapped ${c} tile(s).`,
@@ -284655,6 +284683,7 @@ const I18N = {
     diffName: { easy: 'Maklik', medium: 'Middel', hard: 'Moeilik', insane: 'Waansinnig' },
     newGameMsg: (d) => `Nuwe ${d}-spel. Jy speel eerste!`,
     resumed: 'Welkom terug — jou spel is herstel.',
+    tilesLeftLabel: 'Teëls oor (sak + teenstander)',
     played: (w, s, bingo, extra) => `✅ ${w} — ${s} pte${bingo ? ' · BINGO! +50' : ''}${extra}`,
     botPlayed: (n, w, s, bingo) => `${n} het ${w} gespeel vir ${s}${bingo ? ' · BINGO!' : ''}`,
     botSwapped: (n, c) => `${n} het ${c} teël(s) geruil.`,
@@ -284807,7 +284836,31 @@ class UI {
   }
 
   // Look a word up in the free Dictionary API (needs internet; graceful fallback).
+  // Try Wiktionary first (covers obscure/Scrabble words), then the simple
+  // dictionary API as a fallback.
   async fetchDefinition(word) {
+    return (await this.fetchWiktionary(word)) || (await this.fetchDictionaryApi(word));
+  }
+
+  async fetchWiktionary(word) {
+    try {
+      const res = await fetch('https://en.wiktionary.org/api/rest_v1/page/definition/' + encodeURIComponent(word.toLowerCase()));
+      if (!res.ok) return null;
+      const data = await res.json();
+      const en = (data && data.en) || [];
+      const strip = (s) => String(s).replace(/<[^>]+>/g, '').replace(/&amp;/g, '&')
+        .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
+      const out = [];
+      for (const m of en.slice(0, 2)) {
+        const d0 = m.definitions && m.definitions[0] && m.definitions[0].definition;
+        const text = d0 ? strip(d0) : '';
+        if (text) out.push({ pos: m.partOfSpeech || '', def: text });
+      }
+      return out.length ? out : null;
+    } catch { return null; }
+  }
+
+  async fetchDictionaryApi(word) {
     try {
       const res = await fetch('https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent(word.toLowerCase()));
       if (!res.ok) return null;
@@ -284934,6 +284987,7 @@ class UI {
     this.aiScoreEl = $('#ai-score');
     this.aiLabelEl = $('#ai-label');
     this.bagCountEl = $('#bag-count');
+    this.tilesLeftEl = $('#tiles-left');
     this.statStripEl = $('#stat-strip');
     this.blankModal = $('#blank-modal');
     this.endModal = $('#end-modal');
@@ -285355,7 +285409,31 @@ class UI {
     this.renderBoard();
     this.renderRack();
     this.renderStatus();
+    this.renderTilesLeft();
     this.saveGame();
+  }
+
+  // Unseen tiles = full distribution minus what's on the board and in your rack
+  // (i.e. what's still in the bag plus the opponent's hidden rack — the standard
+  // Scrabble tile tracker; it doesn't reveal the bot's actual rack).
+  renderTilesLeft() {
+    if (!this.tilesLeftEl) return;
+    const total = {};
+    for (const t of freshBag()) total[t] = (total[t] || 0) + 1;
+    const used = {};
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        const cell = this.game.grid[r][c];
+        if (cell) { const k = cell.blank ? '_' : cell.letter; used[k] = (used[k] || 0) + 1; }
+      }
+    }
+    for (const t of this.game.racks.human) used[t] = (used[t] || 0) + 1;
+    const order = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').concat('_');
+    this.tilesLeftEl.innerHTML = order.filter((L) => total[L]).map((L) => {
+      const left = Math.max(0, (total[L] || 0) - (used[L] || 0));
+      const lbl = L === '_' ? '?' : L;
+      return `<span class="tl-chip${left === 0 ? ' zero' : ''}"><b>${lbl}</b><i>${left}</i></span>`;
+    }).join('');
   }
 
   // Live feedback for the tiles being placed: which form valid words, and the

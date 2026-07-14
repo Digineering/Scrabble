@@ -323,6 +323,21 @@ body.dragging-tile { cursor: grabbing; }
 .tl-chip.zero { opacity: .3; }
 .tl-chip.zero i { color: #e88; }
 
+/* "Is it a word?" checker */
+.checker { background: var(--panel); border-radius: 8px; padding: 8px; margin-top: 2px; }
+.checker-title { font-size: .8rem; font-weight: 700; opacity: .85; text-align: center; margin-bottom: 6px; }
+.word-check {
+  width: 100%; box-sizing: border-box;
+  background: #0c1611; color: #eef3ef;
+  border: 1px solid #2f5740; border-radius: 8px;
+  padding: 10px 12px; font-size: 1.05rem; font-weight: 700; letter-spacing: 2px;
+  text-align: center; text-transform: uppercase;
+}
+.word-check:focus { outline: none; border-color: #38c878; }
+.word-check-result { min-height: 1.3em; text-align: center; font-size: .92rem; font-weight: 700; margin-top: 6px; }
+.word-check-result.valid { color: #59d98a; cursor: pointer; }
+.word-check-result.invalid { color: #f08a8a; }
+
   </style>
 </head>
 <body>
@@ -390,6 +405,14 @@ body.dragging-tile { cursor: grabbing; }
     </div>
 
     <ul id="log" class="log"></ul>
+
+    <div class="checker">
+      <div class="checker-title" data-i18n="checkerTitle">Is it a word?</div>
+      <input id="word-check" class="word-check" type="text" autocomplete="off" autocorrect="off"
+             autocapitalize="characters" spellcheck="false"
+             data-i18n-ph="checkerPlaceholder" placeholder="Type letters to check…" />
+      <div id="word-check-result" class="word-check-result"></div>
+    </div>
   </div>
 
   <!-- Word definition -->
@@ -135579,6 +135602,10 @@ const I18N = {
     newGameMsg: (d) => `New ${d} game. You go first! · Tip: tap any word on the board for its meaning.`,
     resumed: 'Welcome back — your game was restored.',
     tilesLeftLabel: 'Tiles left (bag + opponent)',
+    checkerTitle: 'Is it a word?',
+    checkerPlaceholder: 'Type letters to check…',
+    checkerValid: (w) => `✓ ${w} — valid word (tap for meaning)`,
+    checkerInvalid: (w) => `✗ ${w} — not in the dictionary`,
     played: (w, s, bingo, extra) => `✅ ${w} — ${s} pts${bingo ? ' · BINGO! +50' : ''}${extra}`,
     botPlayed: (n, w, s, bingo) => `${n} played ${w} for ${s}${bingo ? ' · BINGO!' : ''}`,
     botSwapped: (n, c) => `${n} swapped ${c} tile(s).`,
@@ -135614,6 +135641,10 @@ const I18N = {
     newGameMsg: (d) => `Nuwe ${d}-spel. Jy speel eerste!`,
     resumed: 'Welkom terug — jou spel is herstel.',
     tilesLeftLabel: 'Teëls oor (sak + teenstander)',
+    checkerTitle: "Is dit 'n woord?",
+    checkerPlaceholder: 'Tik letters om te toets…',
+    checkerValid: (w) => `✓ ${w} — geldige woord`,
+    checkerInvalid: (w) => `✗ ${w} — nie in die woordeboek nie`,
     played: (w, s, bingo, extra) => `✅ ${w} — ${s} pte${bingo ? ' · BINGO! +50' : ''}${extra}`,
     botPlayed: (n, w, s, bingo) => `${n} het ${w} gespeel vir ${s}${bingo ? ' · BINGO!' : ''}`,
     botSwapped: (n, c) => `${n} het ${c} teël(s) geruil.`,
@@ -135664,6 +135695,7 @@ class UI {
     this.initZoom();
     this.initStats();
     this.initStrategy();
+    this.initChecker();
     this.boot();
   }
 
@@ -135720,6 +135752,29 @@ class UI {
       const v = this.L[el.dataset.i18n];
       if (typeof v === 'string') el.textContent = v;
     }
+    for (const el of document.querySelectorAll('[data-i18n-ph]')) {
+      const v = this.L[el.dataset.i18nPh];
+      if (typeof v === 'string') el.placeholder = v;
+    }
+  }
+
+  // "Is it a word?" — live dictionary check as you type; tap a valid result to
+  // see its meaning (English only).
+  initChecker() {
+    const input = $('#word-check');
+    const out = $('#word-check-result');
+    if (!input || !out) return;
+    input.addEventListener('input', () => {
+      const w = (input.value || '').toUpperCase().replace(/[^A-Z]/g, '');
+      if (w.length < 2) { out.textContent = ''; out.className = 'word-check-result'; out._word = ''; return; }
+      const ok = this.game.trie.has(w);
+      out.textContent = ok ? this.L.checkerValid(w) : this.L.checkerInvalid(w);
+      out.className = 'word-check-result ' + (ok ? 'valid' : 'invalid');
+      out._word = ok ? w : '';
+    });
+    out.addEventListener('click', () => {
+      if (out._word && this.lang === 'en') this.showDefinitions([out._word]);
+    });
   }
 
   // Translate an engine "reason" string (English) for messages.
@@ -135998,12 +136053,48 @@ class UI {
       if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < 8) return;
       d.active = true;
       this.startGhost(d);
+      this.cacheCellRects();
       document.body.classList.add('dragging-tile');
       d.srcEl.classList.add('dragging-src');
     }
     e.preventDefault();
     this.moveGhost(e.clientX, e.clientY);
-    this.updateDropTarget(e.clientX, e.clientY);
+    const p = this.ghostPoint(e.clientX, e.clientY);
+    this.updateDropTarget(p.x, p.y);
+  }
+
+  // The tile floats above the finger, so hit-test where the tile visually is.
+  ghostPoint(fx, fy) {
+    if (this._ghost) {
+      const r = this._ghost.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }
+    return { x: fx, y: fy };
+  }
+
+  // Cell positions are stable during a drag — cache them once for fast snapping.
+  cacheCellRects() {
+    this._cellRects = this.cellEls.map((el) => {
+      const r = el.getBoundingClientRect();
+      return { el, r: +el.dataset.r, c: +el.dataset.c, cx: r.left + r.width / 2, cy: r.top + r.height / 2, w: r.width };
+    });
+  }
+
+  // Nearest empty square to (x,y), within ~one cell — makes dropping forgiving.
+  nearestFreeCell(x, y) {
+    const rects = this._cellRects;
+    if (!rects) return this.cellFromPoint(x, y);
+    const dragTile = this._drag && this._drag.tile;
+    let best = null, bestD = Infinity, w = 22;
+    for (const it of rects) {
+      w = it.w;
+      const occ = this.game.grid[it.r][it.c] ||
+        this.pending.some((p) => p.r === it.r && p.c === it.c && p !== dragTile);
+      if (occ) continue;
+      const dist = (it.cx - x) ** 2 + (it.cy - y) ** 2;
+      if (dist < bestD) { bestD = dist; best = it.el; }
+    }
+    return best && bestD <= (w * 0.9) ** 2 ? best : null;
   }
 
   onDragUp(e) {
@@ -136015,6 +136106,7 @@ class UI {
     this._drag = null;
     if (!d.active) return; // it was a tap; let the click handler select it
 
+    const p = this.ghostPoint(e.clientX, e.clientY); // read before removing ghost
     this.endGhost();
     document.body.classList.remove('dragging-tile');
     d.srcEl.classList.remove('dragging-src');
@@ -136026,25 +136118,20 @@ class UI {
       this._suppressRackClick = false; this._suppressBoardClick = false;
     }, 350);
 
-    const x = e.clientX, y = e.clientY;
-    const cell = this.cellFromPoint(x, y);
-    let r = -1, c = -1, freeCell = false;
-    if (cell) {
-      r = +cell.dataset.r; c = +cell.dataset.c;
-      const occupied = this.game.grid[r][c] ||
-        this.pending.some((p) => p.r === r && p.c === c && p !== d.tile);
-      freeCell = !occupied;
-    }
+    const cell = this.nearestFreeCell(p.x, p.y);
+    const freeCell = !!cell;
+    const r = cell ? +cell.dataset.r : -1, c = cell ? +cell.dataset.c : -1;
     this.clearHighlights();
 
     if (d.source === 'rack') {
       if (freeCell) { this.selected = d.i; this.onBoardCell(r, c); }           // place
-      else if (this.overRack(x, y)) this.reorderRack(d.i, this.computeRackDropIndex(x, d.i));
+      else if (this.overRack(p.x, p.y)) this.reorderRack(d.i, this.computeRackDropIndex(p.x, d.i));
     } else { // dragging a tile already on the board
       if (freeCell) { d.tile.r = r; d.tile.c = c; this.render(); }             // move it
-      else if (this.overRack(x, y)) this.recallTile(d.tile);                   // take it off
+      else if (this.overRack(p.x, p.y)) this.recallTile(d.tile);              // take it off
       else this.render();                                                     // snap back
     }
+    this._cellRects = null;
   }
 
   cellFromPoint(x, y) {
@@ -136075,10 +136162,8 @@ class UI {
 
   updateDropTarget(x, y) {
     const d = this._drag;
-    const cell = this.cellFromPoint(x, y);
-    const r = cell ? +cell.dataset.r : -1, c = cell ? +cell.dataset.c : -1;
-    const free = cell && !this.game.grid[r][c] &&
-      !this.pending.some((p) => p.r === r && p.c === c && p !== (d && d.tile));
+    const cell = this.nearestFreeCell(x, y); // already an empty, snappable cell (or null)
+    const free = !!cell;
     if (free) {
       this.clearRackIndicator(); this.setRecallTarget(false);
       if (cell !== this._dropCell) { this.clearCellHighlight(); cell.classList.add('drop-target'); this._dropCell = cell; }

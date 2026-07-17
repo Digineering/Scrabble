@@ -285150,10 +285150,17 @@ class UI {
     });
   }
 
-  // Nearest empty square to (x,y), within ~one cell — makes dropping forgiving.
-  nearestFreeCell(x, y) {
+  // Is the point over the board area?
+  inBoard(x, y) {
+    const r = this.viewportEl.getBoundingClientRect();
+    return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  }
+
+  // Nearest empty square to (x,y), within `factor` of a cell — dropping is
+  // forgiving for placing (large factor), stricter for moving a placed tile.
+  nearestFreeCell(x, y, factor = 0.9) {
     const rects = this._cellRects;
-    if (!rects) return this.cellFromPoint(x, y);
+    if (!rects) { const el = this.cellFromPoint(x, y); return el; }
     const dragTile = this._drag && this._drag.tile;
     let best = null, bestD = Infinity, w = 22;
     for (const it of rects) {
@@ -285164,7 +285171,7 @@ class UI {
       const dist = (it.cx - x) ** 2 + (it.cy - y) ** 2;
       if (dist < bestD) { bestD = dist; best = it.el; }
     }
-    return best && bestD <= (w * 0.9) ** 2 ? best : null;
+    return best && bestD <= (w * factor) ** 2 ? best : null;
   }
 
   onDragUp(e) {
@@ -285188,18 +285195,18 @@ class UI {
       this._suppressRackClick = false; this._suppressBoardClick = false;
     }, 350);
 
-    const cell = this.nearestFreeCell(p.x, p.y);
-    const freeCell = !!cell;
+    const overBoard = this.inBoard(p.x, p.y);
+    const cell = overBoard ? this.nearestFreeCell(p.x, p.y, d.source === 'board' ? 0.6 : 0.9) : null;
     const r = cell ? +cell.dataset.r : -1, c = cell ? +cell.dataset.c : -1;
     this.clearHighlights();
 
     if (d.source === 'rack') {
-      if (freeCell) { this.selected = d.i; this.onBoardCell(r, c); }           // place
+      if (cell) { this.selected = d.i; this.onBoardCell(r, c); }               // place
       else if (this.overRack(p.x, p.y)) this.reorderRack(d.i, this.computeRackDropIndex(p.x, d.i));
     } else { // dragging a tile already on the board
-      if (freeCell) { d.tile.r = r; d.tile.c = c; this.render(); }             // move it
-      else if (this.overRack(p.x, p.y)) this.recallTile(d.tile);              // take it off
-      else this.render();                                                     // snap back
+      if (cell) { d.tile.r = r; d.tile.c = c; this.render(); }                 // move it
+      else if (!overBoard) this.recallTile(d.tile);                            // dragged off board -> remove
+      else this.render();                                                     // no target on board -> snap back
     }
     this._cellRects = null;
   }
@@ -285232,17 +285239,23 @@ class UI {
 
   updateDropTarget(x, y) {
     const d = this._drag;
-    const cell = this.nearestFreeCell(x, y); // already an empty, snappable cell (or null)
-    const free = !!cell;
-    if (free) {
+    const src = d ? d.source : 'rack';
+    const overBoard = this.inBoard(x, y);
+    const cell = overBoard ? this.nearestFreeCell(x, y, src === 'board' ? 0.6 : 0.9) : null;
+    if (cell) {
       this.clearRackIndicator(); this.setRecallTarget(false);
       if (cell !== this._dropCell) { this.clearCellHighlight(); cell.classList.add('drop-target'); this._dropCell = cell; }
+      return;
+    }
+    this.clearCellHighlight();
+    if (src === 'board') {
+      // A placed tile dropped off the board is removed — hint that on the tray.
+      this.clearRackIndicator();
+      this.setRecallTarget(!overBoard);
+    } else if (this.overRack(x, y)) {
+      this.setRecallTarget(false); this.updateRackIndicator(x);
     } else {
-      this.clearCellHighlight();
-      if (this.overRack(x, y)) {
-        if (d && d.source === 'board') { this.clearRackIndicator(); this.setRecallTarget(true); }
-        else { this.setRecallTarget(false); this.updateRackIndicator(x); }
-      } else { this.clearRackIndicator(); this.setRecallTarget(false); }
+      this.clearRackIndicator(); this.setRecallTarget(false);
     }
   }
 

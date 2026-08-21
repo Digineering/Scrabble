@@ -2,35 +2,45 @@
 <html lang="af">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <meta name="theme-color" content="#1f6f4a" />
-  <title>Scrabble — Afrikaans</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#061B14" />
+  <title>WordCobble — Afrikaans</title>
   <style>
 :root {
-  --board-bg: #ffffff;       /* gaps between squares */
-  --cell: #dcdae4;           /* empty square (lavender-grey) */
-  --felt: #dcdae4;
-  --felt-dark: #ffffff;
-  --tile: #f3e7c4;           /* cream tile */
-  --tile-edge: #cdb98a;
-  --ink: #1c5a2e;            /* dark-green letters */
-  --tw: #e3158a;             /* triple word — pink */
-  --dw: #f29d83;             /* double word — coral */
-  --tl: #1f74b8;             /* triple letter — blue */
-  --dl: #a6d3ef;             /* double letter — light blue */
-  --tray: #5bb24a;           /* green rack tray */
-  --valid: #2aa84a;
-  --invalid: #e23b3b;
-  --panel: #102018;
+  /* Interface */
+  --bg: #061B14;
+  --panel: #0B281E;
+  --border: #405F4D;
+  --text: #F8F5ED;
+  --text2: #AEBBAF;
+  --active: #9BEA3B;
+  --primary: #20A64A;
+  --primary2: #31BC5C;
+  --secicon: #9AB96C;
+  /* Board */
+  --stone: #F1EBDD;
+  --stone2: #E9E1D1;
+  --grout: #D4CCBC;
+  --frame: #173E2D;
+  --tw: #C61F4A;
+  --dw: #E34B23;
+  --tl: #0868BC;
+  --dl: #1597D0;
+  --premlabel: #FFFFFF;
+  /* Tiles */
+  --tile: #F4E5C4;
+  --tile-edge: #D6BC87;
+  --ink: #0D3626;
+  --proposed: #35B966;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 html, body {
   margin: 0;
-  background: #0c1611;
-  color: #eef3ef;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
   overscroll-behavior: none;
 }
 
@@ -39,304 +49,279 @@ html, body {
 .loading {
   position: fixed; inset: 0;
   display: flex; align-items: center; justify-content: center;
-  background: #0c1611; color: #cfe; font-size: 1rem; padding: 1rem; text-align: center;
+  background: var(--bg); color: var(--text2); font-size: 1rem; padding: 1rem; text-align: center;
   z-index: 50;
 }
 
 .app {
-  max-width: 560px;
+  max-width: 520px;
   margin: 0 auto;
-  padding: 8px 8px 32px;
+  padding: 12px 12px calc(20px + env(safe-area-inset-bottom));
+  padding-top: calc(12px + env(safe-area-inset-top));
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
+@media (min-width: 400px) { .app { padding-left: 16px; padding-right: 16px; } }
 
-.topbar {
-  display: flex; align-items: center; justify-content: space-between;
-}
-.topbar h1 { font-size: 1.25rem; margin: 0; letter-spacing: 1px; }
-.scores { display: flex; gap: 8px; }
-.score {
-  background: var(--panel); border-radius: 10px; padding: 4px 12px;
-  display: flex; flex-direction: column; align-items: center; min-width: 64px;
-  border: 2px solid transparent;
-}
-.score .lbl { font-size: .7rem; opacity: .8; }
-.score .val { font-size: 1.3rem; font-weight: 700; }
-.your-turn .score.you { border-color: #59d98a; }
+/* ---------- Header ---------- */
+.wc-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.wc-brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.wc-wordmark { margin: 0; font-size: clamp(24px, 8vw, 34px); font-weight: 800; letter-spacing: -.5px; color: var(--text); white-space: nowrap; }
+.wc-logo { width: 40px; height: 27px; flex: none; }
 
-.turn {
-  text-align: center; font-size: .85rem; opacity: .85;
-  background: var(--panel); border-radius: 8px; padding: 4px;
+.wc-scores { display: flex; gap: 8px; flex: none; }
+.wc-score {
+  background: var(--panel); border: 2px solid transparent; border-radius: 14px;
+  padding: 6px 14px; min-width: 62px;
+  display: flex; flex-direction: column; align-items: center; line-height: 1;
 }
+.wc-score-lbl { font-size: 12px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--text2); }
+.wc-score-val { font-size: clamp(26px, 8vw, 34px); font-weight: 800; margin-top: 3px; }
+.wc-score.active { border-color: var(--active); }
+.wc-score.active .wc-score-val { color: var(--active); }
 
-/* Board */
+/* ---------- Turn / stats strip ---------- */
+.wc-status {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+  padding: 8px 14px; font-size: 13px; flex-wrap: wrap;
+}
+.wc-status-turn { display: inline-flex; align-items: center; gap: 8px; font-weight: 750; text-transform: uppercase; letter-spacing: .5px; }
+.wc-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text2); }
+body.your-turn .wc-dot { background: var(--active); box-shadow: 0 0 8px var(--active); }
+body.your-turn .wc-status-turn { color: var(--active); }
+.wc-status-stats { display: inline-flex; gap: 14px; }
+.wc-status-stat { display: inline-flex; gap: 6px; align-items: baseline; text-transform: uppercase; font-size: 12px; letter-spacing: .5px; color: var(--text2); }
+.wc-status-stat b { color: var(--text); font-size: 14px; font-weight: 800; }
+
+/* ---------- Board ---------- */
 .board-wrap { position: relative; display: flex; justify-content: center; }
 .board-viewport {
   width: 100%;
   aspect-ratio: 1 / 1;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: 12px;
   position: relative;
-  touch-action: none;          /* we handle pinch/pan ourselves */
-  background: var(--felt-dark);
+  touch-action: none;
+  background: var(--frame);
+  border: 5px solid var(--frame);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .45);
 }
 .board {
-  width: 100%;
-  height: 100%;
+  width: 100%; height: 100%;
   display: grid;
   grid-template-columns: repeat(15, 1fr);
   grid-template-rows: repeat(15, 1fr);
-  gap: 2px;
-  background: var(--felt-dark);
-  padding: 4px;
-  border-radius: 8px;
+  gap: 1px;
+  background: var(--grout);
+  border-radius: 7px;
   transform-origin: 0 0;
   will-change: transform;
 }
-.zoom-controls {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  display: flex;
-  gap: 6px;
-  z-index: 5;
-}
-.zoom-controls button {
-  width: 38px; height: 38px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(16, 32, 24, .82);
-  color: #eef3ef;
-  font-size: 1.25rem;
-  font-weight: 700;
-  line-height: 1;
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 1px 4px rgba(0,0,0,.4);
-  cursor: pointer;
-}
-.zoom-controls button:active { transform: scale(.92); }
-.board-viewport.zoomed { box-shadow: inset 0 0 0 2px #59d98a; }
 .cell {
-  background: var(--felt);
-  border-radius: 3px;
+  background: var(--stone);
   display: flex; align-items: center; justify-content: center;
   position: relative;
   font-size: clamp(7px, 1.7vw, 11px);
-  user-select: none;
-  cursor: pointer;
+  user-select: none; cursor: pointer;
 }
 .cell.prem-TW { background: var(--tw); }
 .cell.prem-DW { background: var(--dw); }
 .cell.prem-TL { background: var(--tl); }
 .cell.prem-DL { background: var(--dl); }
 .cell.center { background: var(--dw); }
-.prem-label { font-weight: 800; color: #fff; font-size: clamp(6px, 1.5vw, 9px); letter-spacing: .3px; }
-.star { color: #fff; font-size: 1.4em; }
+.prem-label { font-weight: 800; color: var(--premlabel); font-size: clamp(8px, 2vw, 10px); letter-spacing: .2px; }
+.star { color: var(--premlabel); font-size: 1.4em; }
 
 .tile {
   position: absolute; inset: 1px;
-  background: var(--tile);
+  background: linear-gradient(180deg, #FBF1D6 0%, var(--tile) 55%, #EDDCB4 100%);
   color: var(--ink);
-  border-radius: 3px;
+  border-radius: 4px;
   display: flex; align-items: center; justify-content: center;
-  font-weight: 700;
-  font-size: clamp(11px, 2.9vw, 18px);
-  box-shadow: inset 0 -2px 0 var(--tile-edge);
+  font-weight: 750;
+  font-size: clamp(11px, 3vw, 19px);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .25), inset 0 -2px 0 var(--tile-edge);
 }
-.tile sub { font-size: .55em; font-weight: 600; margin-left: 1px; vertical-align: sub; }
-.tile.blank { color: #4f8a4a; }
-.cell.pending .tile { background: #fbf1cf; box-shadow: inset 0 -2px 0 #d9b85a; }
+.tile sub {
+  position: absolute; right: 2px; bottom: 1px;
+  font-size: .5em; font-weight: 700; opacity: .85;
+}
+.tile.blank { color: #2f7a52; }
+.cell.pending .tile { box-shadow: 0 1px 2px rgba(0,0,0,.25), inset 0 0 0 2px var(--proposed); }
 .cell.pending.dragging-src .tile { opacity: .3; }
-.cell.last .tile { box-shadow: inset 0 -2px 0 var(--tile-edge), 0 0 0 2px #f5d36b; }
+.cell.last .tile { box-shadow: 0 1px 2px rgba(0,0,0,.25), inset 0 -2px 0 var(--tile-edge), 0 0 0 2px #f5d36b; }
 
-/* Live word feedback */
-.cell.valid-word .tile { box-shadow: inset 0 -2px 0 #d9b85a, 0 0 0 2px var(--valid); }
+.cell.valid-word .tile { box-shadow: 0 1px 2px rgba(0,0,0,.25), inset 0 0 0 2px var(--proposed); }
 .score-badge {
   position: absolute; right: -3px; bottom: -5px;
-  min-width: 15px; height: 15px; padding: 0 3px;
-  border-radius: 8px;
+  min-width: 15px; height: 15px; padding: 0 3px; border-radius: 8px;
   display: flex; align-items: center; justify-content: center;
   font-size: clamp(7px, 1.9vw, 11px); font-weight: 800; color: #fff;
-  box-shadow: 0 1px 3px rgba(0,0,0,.45);
-  z-index: 6; pointer-events: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,.45); z-index: 6; pointer-events: none;
 }
-.score-badge.valid { background: var(--valid); }
-.score-badge.invalid { background: var(--invalid); }
+.score-badge.valid { background: var(--primary); }
+.score-badge.invalid { background: var(--tw); }
+.cell.drop-target { box-shadow: inset 0 0 0 2px var(--active); }
 
-/* Rack */
+/* ---------- Rack ---------- */
 .rack {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 6px;
-  background: var(--tray);
-  padding: 8px;
-  border-radius: 10px;
-  box-shadow: inset 0 3px 8px rgba(0,0,0,.3);
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 7px;
+  background: var(--panel); border: 1px solid var(--border);
+  padding: 8px; border-radius: 14px;
 }
-.rack.recall-target { box-shadow: inset 0 0 0 3px #f0c24b, inset 0 3px 8px rgba(0,0,0,.3); }
+.rack.recall-target { border-color: var(--dw); box-shadow: inset 0 0 0 2px var(--dw); }
 .rack-tile {
   aspect-ratio: 1 / 1.05;
-  background: var(--tile);
+  background: linear-gradient(180deg, #FBF1D6 0%, var(--tile) 55%, #EDDCB4 100%);
   color: var(--ink);
-  border-radius: 5px;
+  border-radius: 7px;
   display: flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: clamp(16px, 5vw, 26px);
-  box-shadow: inset 0 -3px 0 var(--tile-edge);
-  cursor: grab; position: relative;
-  user-select: none;
-  touch-action: none;          /* let us drag tiles without scrolling */
+  font-weight: 750; font-size: clamp(17px, 5.5vw, 28px);
+  box-shadow: 0 2px 3px rgba(0,0,0,.25), inset 0 -3px 0 var(--tile-edge);
+  cursor: grab; position: relative; user-select: none; touch-action: none;
 }
-.rack-tile sub { font-size: .5em; font-weight: 600; }
+.rack-tile sub { position: absolute; right: 4px; bottom: 2px; font-size: .42em; font-weight: 700; opacity: .8; }
 .rack-tile.dragging-src { opacity: .28; }
-.rack-tile.drop-left { box-shadow: inset 5px 0 0 #59d98a, inset 0 -3px 0 var(--tile-edge); }
-.rack-tile.drop-right { box-shadow: inset -5px 0 0 #59d98a, inset 0 -3px 0 var(--tile-edge); }
-
-/* Floating tile that follows the finger/cursor while dragging. */
-.tile-ghost {
-  position: fixed; left: 0; top: 0; z-index: 200;
-  pointer-events: none;
-  background: #fff6da; color: var(--ink);
-  border-radius: 5px;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: clamp(16px, 5vw, 26px);
-  box-shadow: 0 6px 16px rgba(0,0,0,.55);
-}
-.tile-ghost sub { font-size: .5em; font-weight: 600; }
-.tile-ghost .blank-face { opacity: .45; }
-.cell.drop-target { box-shadow: inset 0 0 0 2px #59d98a, 0 0 8px #59d98a; border-radius: 3px; }
-body.dragging-tile { cursor: grabbing; }
+.rack-tile.drop-left { box-shadow: inset 5px 0 0 var(--active), inset 0 -3px 0 var(--tile-edge); }
+.rack-tile.drop-right { box-shadow: inset -5px 0 0 var(--active), inset 0 -3px 0 var(--tile-edge); }
 .rack-tile .blank-face { opacity: .45; }
-.rack-tile.selected { transform: translateY(-6px); box-shadow: inset 0 -3px 0 var(--tile-edge), 0 0 0 3px #59d98a; }
-.rack-tile.used { opacity: .25; pointer-events: none; }
-.rack-tile.swap { box-shadow: inset 0 -3px 0 var(--tile-edge), 0 0 0 3px #e6543c; }
+.rack-tile.selected { transform: translateY(-6px); box-shadow: 0 4px 8px rgba(0,0,0,.35), inset 0 -3px 0 var(--tile-edge), 0 0 0 3px var(--active); }
+.rack-tile.used { opacity: .22; pointer-events: none; }
+.rack-tile.swap { box-shadow: inset 0 -3px 0 var(--tile-edge), 0 0 0 3px var(--dw); }
 
-/* Controls */
-.controls { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
-.controls button, .meta button {
-  background: #20392b; color: #eef3ef; border: 1px solid #2f5740;
-  border-radius: 8px; padding: 12px 4px; font-size: .9rem; font-weight: 600;
-  cursor: pointer;
+/* Floating drag tile */
+.tile-ghost {
+  position: fixed; left: 0; top: 0; z-index: 200; pointer-events: none;
+  background: linear-gradient(180deg, #FBF1D6, var(--tile)); color: var(--ink);
+  border-radius: 7px; display: flex; align-items: center; justify-content: center;
+  font-weight: 750; font-size: clamp(17px, 5.5vw, 28px);
+  box-shadow: 0 8px 18px rgba(0,0,0,.55);
 }
-.controls button:active, .meta button:active { transform: scale(.96); }
-.controls .primary, #end-newgame.primary { background: #2faa63; border-color: #38c878; }
+.tile-ghost sub { position: absolute; right: 4px; bottom: 2px; font-size: .42em; font-weight: 700; }
+.tile-ghost .blank-face { opacity: .45; }
+body.dragging-tile { cursor: grabbing; }
 
-.message {
-  min-height: 1.3em; text-align: center; font-size: .9rem; padding: 2px;
+/* ---------- Message / live region ---------- */
+.message { min-height: 1.3em; text-align: center; font-size: .9rem; color: var(--text2); padding: 0 2px; }
+.message.thinking { font-style: italic; }
+
+/* ---------- Word checker ---------- */
+.wc-word-check { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 10px 12px; }
+.wc-word-check-title { font-size: 13px; font-weight: 750; letter-spacing: .8px; text-transform: uppercase; color: var(--text2); margin-bottom: 8px; }
+.wc-word-check-row { display: flex; gap: 8px; }
+.word-check {
+  flex: 1; min-width: 0; background: #06140F; color: var(--text);
+  border: 1px solid var(--border); border-radius: 12px;
+  padding: 12px 14px; font-size: 1.05rem; font-weight: 700; letter-spacing: 2px;
+  text-transform: uppercase; font-family: inherit;
 }
-.message.thinking { font-style: italic; opacity: .8; }
-
-.meta {
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  font-size: .85rem; justify-content: center;
+.word-check::placeholder { color: var(--text2); opacity: .7; letter-spacing: normal; font-weight: 400; text-transform: none; }
+.word-check:focus { outline: none; border-color: var(--active); box-shadow: 0 0 0 2px rgba(155,234,59,.3); }
+.wc-btn--check {
+  flex: none; min-width: 88px; min-height: 48px;
+  background: var(--primary); color: #fff; border: none; border-radius: 12px;
+  font-family: inherit; font-size: 15px; font-weight: 750; letter-spacing: .5px; text-transform: uppercase; cursor: pointer;
 }
-.meta select { padding: 6px; border-radius: 6px; background: #20392b; color: #eef; border: 1px solid #2f5740; }
-.meta .bag { opacity: .85; }
+.wc-btn--check:active { background: var(--primary2); }
+.word-check-result { min-height: 1.2em; text-align: center; font-size: .92rem; font-weight: 750; margin-top: 8px; }
+.word-check-result.valid { color: var(--active); cursor: pointer; }
+.word-check-result.invalid { color: #f0857f; }
 
-.log { list-style: none; margin: 0; padding: 0; font-size: .8rem; opacity: .85; }
-.log li { padding: 2px 4px; border-bottom: 1px solid rgba(255,255,255,.06); }
-
-/* Modals */
-.modal {
-  position: fixed; inset: 0; background: rgba(0,0,0,.6);
-  display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 100;
+/* ---------- Primary + secondary actions ---------- */
+.wc-btn--play {
+  width: 100%; min-height: 56px;
+  background: var(--primary); color: #fff;
+  border: none; border-radius: 12px;
+  font-family: inherit; font-size: 18px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+  cursor: pointer; box-shadow: 0 4px 14px rgba(32,166,74,.35);
 }
+.wc-btn--play:not(:disabled):active { background: var(--primary2); transform: translateY(1px); }
+.wc-btn--play:disabled { background: #16402c; color: var(--text2); box-shadow: none; cursor: default; opacity: .8; }
+
+.wc-turn-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.wc-btn--secondary {
+  min-height: 52px;
+  background: var(--panel); color: var(--text);
+  border: 1px solid var(--border); border-radius: 12px;
+  font-family: inherit; font-size: 15px; font-weight: 700; letter-spacing: .3px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.wc-btn--secondary:active { background: #0e3224; }
+@media (max-width: 360px) { .wc-btn--secondary { font-size: 13px; } }
+
+/* ---------- Bottom utility bar ---------- */
+.wc-utility {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  border-top: 1px solid var(--border); padding-top: 10px; margin-top: 2px;
+  color: var(--text2);
+}
+.wc-utility-item {
+  background: none; border: none; color: var(--text2);
+  font-family: inherit; font-size: 13px; font-weight: 700; letter-spacing: .3px;
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 4px;
+}
+.wc-utility-item .ic { color: var(--secicon); font-size: 15px; }
+.wc-utility-item b { color: var(--text); }
+.wc-utility .chev { opacity: .7; }
+
+/* ---------- Fields (settings) ---------- */
+.wc-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 15px; font-weight: 700; margin-bottom: 12px; }
+.wc-field select {
+  background: #06140F; color: var(--text); border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 12px; font-family: inherit; font-size: 15px; min-width: 150px;
+}
+
+/* ---------- Modals / sheets ---------- */
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 100; }
+.modal.sheet { align-items: flex-end; padding: 0; }
 .modal-card {
-  background: #14241b; border: 1px solid #2f5740; border-radius: 12px;
-  padding: 18px; max-width: 360px; width: 100%; text-align: center;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+  padding: 18px; max-width: 460px; width: 100%; text-align: center;
 }
-.modal-card h2 { margin: 0 0 12px; font-size: 1.1rem; }
+.sheet-card {
+  border-radius: 16px 16px 0 0; max-width: 520px;
+  padding-bottom: calc(18px + env(safe-area-inset-bottom));
+}
+.modal-card h2 { margin: 0 0 14px; font-size: 1.15rem; font-weight: 800; }
+.sheet-card .wc-btn--play { margin-top: 6px; }
+.sheet-close { margin-top: 10px; }
+
 .blank-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 12px; }
 .blank-grid button {
-  aspect-ratio: 1; background: var(--tile); color: var(--ink);
-  border: none; border-radius: 5px; font-weight: 700; font-size: 1rem; cursor: pointer;
+  aspect-ratio: 1; background: var(--tile); color: var(--ink); border: none; border-radius: 6px;
+  font-weight: 800; font-size: 1rem; cursor: pointer;
 }
-.blank-cancel { background: #20392b; color: #eef; border: 1px solid #2f5740; border-radius: 8px; padding: 8px 16px; cursor: pointer; }
-#end-newgame { margin-top: 8px; padding: 10px 20px; border-radius: 8px; border: none; font-weight: 700; }
+.stats-reset { display: block; margin: 12px auto 0; background: none; color: #e88; border: none; font-size: .8rem; opacity: .85; cursor: pointer; text-decoration: underline; font-family: inherit; }
 
-/* Stats panel */
-.stats-list { list-style: none; margin: 0 0 14px; padding: 0; text-align: left; }
-.stats-list li {
-  display: flex; justify-content: space-between; gap: 12px;
-  padding: 7px 4px; border-bottom: 1px solid rgba(255,255,255,.08);
-  font-size: .92rem;
-}
-.stats-list li span { opacity: .85; }
-.stats-list li b { font-weight: 800; }
-.stats-reset {
-  display: block; margin: 10px auto 0;
-  background: transparent; color: #e29; border: none;
-  font-size: .8rem; opacity: .8; cursor: pointer; text-decoration: underline;
-}
-#btn-stats { white-space: nowrap; }
-
-/* Always-visible stats strip */
-.stat-strip {
-  text-align: center;
-  font-size: .8rem;
-  opacity: .9;
-  padding: 4px 6px;
-  background: var(--panel);
-  border-radius: 8px;
-  line-height: 1.5;
-}
-.stat-strip b { color: #ffd86b; font-weight: 800; }
-
-/* Word definition pop-up */
-.def-card { max-width: 380px; cursor: pointer; }
-.def-card h2 {
-  margin: 0 0 10px; font-size: 1.5rem; letter-spacing: 1px;
-  color: #ffd86b; text-transform: capitalize;
-}
+.def-card { max-width: 400px; cursor: pointer; }
+.def-card h2 { color: var(--active); text-transform: capitalize; letter-spacing: 1px; font-size: 1.4rem; }
 .def-body { text-align: left; font-size: .95rem; line-height: 1.45; }
 .def-body p { margin: 0 0 8px; }
 .def-pos { font-style: italic; opacity: .7; margin-right: 4px; }
 .def-loading { opacity: .7; font-style: italic; }
 .def-hint { margin-top: 14px; font-size: .75rem; opacity: .55; }
-
-/* Tap-a-word definition entries */
 #def-word:empty { display: none; }
 .def-entry { margin-bottom: 12px; }
 .def-entry:last-child { margin-bottom: 0; }
-.def-entry h3 {
-  margin: 0 0 4px; color: #ffd86b; font-size: 1.15rem;
-  text-transform: capitalize; letter-spacing: .5px;
-}
+.def-entry h3 { margin: 0 0 4px; color: var(--active); font-size: 1.15rem; text-transform: capitalize; letter-spacing: .5px; }
 .def-text { font-size: .92rem; line-height: 1.4; }
 
-/* Tiles-left tracker */
-.tiles-wrap { background: var(--panel); border-radius: 8px; padding: 6px 8px; }
-.tiles-label { font-size: .72rem; opacity: .75; text-align: center; margin-bottom: 5px; }
-.tiles-left {
-  display: grid;
-  grid-template-columns: repeat(9, 1fr);
-  gap: 4px;
-}
-.tl-chip {
-  display: flex; flex-direction: column; align-items: center;
-  background: #20392b; border-radius: 5px; padding: 3px 0;
-  line-height: 1.05;
-}
-.tl-chip b { font-size: .82rem; font-weight: 800; }
-.tl-chip i { font-size: .7rem; font-style: normal; opacity: .9; color: #ffd86b; }
-.tl-chip.zero { opacity: .3; }
+/* ---------- Stats list + tile tracker (in Stats sheet) ---------- */
+.stats-list { list-style: none; margin: 0 0 14px; padding: 0; text-align: left; }
+.stats-list li { display: flex; justify-content: space-between; gap: 12px; padding: 7px 4px; border-bottom: 1px solid rgba(255,255,255,.08); font-size: .92rem; }
+.stats-list li span { color: var(--text2); }
+.stats-list li b { font-weight: 800; }
+.tiles-label { font-size: .74rem; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); text-align: center; margin: 4px 0 6px; }
+.tiles-left { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px; margin-bottom: 14px; }
+.tl-chip { display: flex; flex-direction: column; align-items: center; background: #0e3224; border-radius: 6px; padding: 4px 0; line-height: 1.05; }
+.tl-chip b { font-size: .85rem; font-weight: 800; }
+.tl-chip i { font-size: .72rem; font-style: normal; color: var(--active); }
+.tl-chip.zero { opacity: .32; }
 .tl-chip.zero i { color: #e88; }
 
-/* "Is it a word?" checker */
-.checker { background: var(--panel); border-radius: 8px; padding: 8px; margin-top: 2px; }
-.checker-title { font-size: .8rem; font-weight: 700; opacity: .85; text-align: center; margin-bottom: 6px; }
-.word-check {
-  width: 100%; box-sizing: border-box;
-  background: #0c1611; color: #eef3ef;
-  border: 1px solid #2f5740; border-radius: 8px;
-  padding: 10px 12px; font-size: 1.05rem; font-weight: 700; letter-spacing: 2px;
-  text-align: center; text-transform: uppercase;
-}
-.word-check:focus { outline: none; border-color: #38c878; }
-.word-check-result { min-height: 1.3em; text-align: center; font-size: .92rem; font-weight: 700; margin-top: 6px; }
-.word-check-result.valid { color: #59d98a; cursor: pointer; }
-.word-check-result.invalid { color: #f08a8a; }
+:focus-visible { outline: 2px solid var(--active); outline-offset: 2px; }
 
   </style>
 </head>
@@ -344,43 +329,83 @@ body.dragging-tile { cursor: grabbing; }
   <div id="loading" class="loading">Loading…</div>
 
   <div id="app" class="app hidden">
-    <header class="topbar">
-      <h1>Scrabble</h1>
-      <div class="scores">
-        <div class="score you">
-          <span class="lbl" data-i18n="youLabel">You</span>
-          <span id="human-score" class="val">0</span>
+    <header class="wc-header">
+      <div class="wc-brand">
+        <h1 class="wc-wordmark">WordCobble</h1>
+        <svg class="wc-logo" viewBox="0 0 44 30" aria-hidden="true">
+          <ellipse cx="17" cy="18" rx="15" ry="11" fill="#173E2D" />
+          <ellipse cx="28" cy="12" rx="14" ry="10" fill="#E9E1D1" />
+        </svg>
+      </div>
+      <div class="wc-scores">
+        <div class="wc-score" id="score-you">
+          <span class="wc-score-lbl" data-i18n="youLabel">You</span>
+          <span class="wc-score-val" id="human-score">0</span>
         </div>
-        <div class="score bot">
-          <span id="ai-label" class="lbl">Bot</span>
-          <span id="ai-score" class="val">0</span>
+        <div class="wc-score" id="score-bot">
+          <span class="wc-score-lbl" id="ai-label">Bot</span>
+          <span class="wc-score-val" id="ai-score">0</span>
         </div>
       </div>
     </header>
 
-    <div id="turn-indicator" class="turn">Your turn</div>
-    <div id="stat-strip" class="stat-strip"></div>
+    <div class="wc-status">
+      <span class="wc-status-turn"><span class="wc-dot"></span><span id="turn-indicator">Your turn</span></span>
+      <span class="wc-status-stats">
+        <span class="wc-status-stat"><em data-i18n="best">Best</em><b id="strip-best">0</b></span>
+        <span class="wc-status-stat"><em data-i18n="streakLbl">Streak</em><b id="strip-streak">0</b></span>
+        <span class="wc-status-stat"><em data-i18n="gamesLbl">Games</em><b id="strip-games">0</b></span>
+      </span>
+    </div>
 
     <main class="board-wrap">
       <div id="board-viewport" class="board-viewport">
-        <div id="board" class="board"></div>
+        <div id="board" class="board wc-board"></div>
       </div>
     </main>
 
-    <div id="message" class="message"></div>
+    <div id="message" class="message" role="status" aria-live="polite"></div>
 
     <div id="rack" class="rack"></div>
 
-    <div class="controls">
-      <button id="btn-play" class="primary" data-i18n="play">Play</button>
-      <button id="btn-recall" data-i18n="recall">Recall</button>
-      <button id="btn-shuffle" data-i18n="shuffle">Shuffle</button>
-      <button id="btn-pass" data-i18n="pass">Pass</button>
-      <button id="btn-exchange" data-i18n="swap">Swap</button>
+    <div class="wc-word-check">
+      <div class="wc-word-check-title" data-i18n="checkerTitle">Check a word</div>
+      <div class="wc-word-check-row">
+        <input id="word-check" class="word-check" type="text" autocomplete="off" autocorrect="off"
+               autocapitalize="characters" spellcheck="false"
+               data-i18n-ph="checkerPlaceholder" placeholder="Type letters…" />
+        <button id="word-check-btn" class="wc-btn--check" data-i18n="checkBtn">Check</button>
+      </div>
+      <div id="word-check-result" class="word-check-result"></div>
     </div>
 
-    <div class="meta">
-      <label><span data-i18n="difficultyLabel">Difficulty</span>
+    <button id="btn-play" class="wc-btn--play" data-i18n="playWord">Play Word</button>
+
+    <div class="wc-turn-actions">
+      <button id="btn-recall" class="wc-btn--secondary" data-i18n="recall">Recall</button>
+      <button id="btn-shuffle" class="wc-btn--secondary" data-i18n="shuffle">Shuffle</button>
+      <button id="btn-pass" class="wc-btn--secondary" data-i18n="pass">Pass</button>
+      <button id="btn-exchange" class="wc-btn--secondary" data-i18n="swap">Swap</button>
+    </div>
+
+    <div class="wc-utility">
+      <button id="btn-settings" class="wc-utility-item">
+        <span class="ic" aria-hidden="true">⚙</span><span data-i18n="gameSettings">Game Settings</span><span class="chev">⌄</span>
+      </button>
+      <span class="wc-utility-item wc-bag">
+        <span class="ic" aria-hidden="true">🎒</span><span data-i18n="bagLabel">Bag</span> <b id="bag-count">0</b>
+      </span>
+      <button id="btn-stats" class="wc-utility-item">
+        <span class="ic" aria-hidden="true">📊</span><span data-i18n="statsWord">Stats</span><span class="chev">⌄</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Game Settings sheet -->
+  <div id="settings-modal" class="modal sheet hidden">
+    <div class="modal-card sheet-card">
+      <h2 data-i18n="gameSettings">Game Settings</h2>
+      <label class="wc-field"><span data-i18n="difficultyLabel">Difficulty</span>
         <select id="difficulty">
           <option value="easy" data-i18n="diffEasy">Easy</option>
           <option value="medium" selected data-i18n="diffMedium">Medium</option>
@@ -388,30 +413,26 @@ body.dragging-tile { cursor: grabbing; }
           <option value="insane" data-i18n="diffInsane">Insane</option>
         </select>
       </label>
-      <label><span data-i18n="strategyLabel">Strategy</span>
+      <label class="wc-field"><span data-i18n="strategyLabel">Strategy</span>
         <select id="bot-strategy">
           <option value="one" data-i18n="strat1">1 · Varied</option>
           <option value="two" data-i18n="strat2">2 · No clumping</option>
         </select>
       </label>
-      <button id="btn-newgame" data-i18n="newGame">New Game</button>
-      <button id="btn-stats" data-i18n="stats">📊 Stats</button>
-      <span class="bag"><span data-i18n="bagLabel">Bag:</span> <b id="bag-count">0</b></span>
+      <button id="btn-newgame" class="wc-btn--play" data-i18n="newGame">New Game</button>
+      <button id="settings-close" class="wc-btn--secondary sheet-close" data-i18n="close">Close</button>
     </div>
+  </div>
 
-    <div class="tiles-wrap">
+  <!-- Stats sheet -->
+  <div id="stats-modal" class="modal sheet hidden">
+    <div class="modal-card sheet-card">
+      <h2 data-i18n="statsTitle">Your Stats</h2>
+      <ul id="stats-list" class="stats-list"></ul>
       <div class="tiles-label" data-i18n="tilesLeftLabel">Tiles left (bag + opponent)</div>
       <div id="tiles-left" class="tiles-left"></div>
-    </div>
-
-    <ul id="log" class="log"></ul>
-
-    <div class="checker">
-      <div class="checker-title" data-i18n="checkerTitle">Is it a word?</div>
-      <input id="word-check" class="word-check" type="text" autocomplete="off" autocorrect="off"
-             autocapitalize="characters" spellcheck="false"
-             data-i18n-ph="checkerPlaceholder" placeholder="Type letters to check…" />
-      <div id="word-check-result" class="word-check-result"></div>
+      <button id="stats-close" class="wc-btn--play" data-i18n="close">Close</button>
+      <button id="stats-reset" class="stats-reset" data-i18n="resetStats">Reset stats</button>
     </div>
   </div>
 
@@ -429,17 +450,7 @@ body.dragging-tile { cursor: grabbing; }
     <div class="modal-card">
       <h2 data-i18n="chooseBlank">Choose a letter for the blank</h2>
       <div class="blank-grid"></div>
-      <button class="blank-cancel" data-i18n="cancel">Cancel</button>
-    </div>
-  </div>
-
-  <!-- Stats -->
-  <div id="stats-modal" class="modal hidden">
-    <div class="modal-card">
-      <h2 data-i18n="statsTitle">📊 Your Stats</h2>
-      <ul id="stats-list" class="stats-list"></ul>
-      <button id="stats-close" class="primary" data-i18n="close">Close</button>
-      <button id="stats-reset" class="stats-reset" data-i18n="resetStats">Reset stats</button>
+      <button class="blank-cancel wc-btn--secondary" data-i18n="cancel">Cancel</button>
     </div>
   </div>
 
@@ -448,7 +459,7 @@ body.dragging-tile { cursor: grabbing; }
     <div class="modal-card">
       <h2 id="end-title">Game over</h2>
       <p id="end-detail"></p>
-      <button id="end-newgame" class="primary" data-i18n="playAgain">Play again</button>
+      <button id="end-newgame" class="wc-btn--play" data-i18n="playAgain">Play again</button>
     </div>
   </div>
   <script>
@@ -135588,12 +135599,14 @@ const $ = (sel) => document.querySelector(sel);
 const I18N = {
   en: {
     play: 'Play', recall: 'Recall', shuffle: 'Shuffle', pass: 'Pass', swap: 'Swap', swapConfirm: 'Confirm Swap',
-    newGame: 'New Game', stats: '📊 Stats', bagLabel: 'Bag:', difficultyLabel: 'Difficulty',
+    newGame: 'New Game', stats: 'Stats', statsWord: 'Stats', gameSettings: 'Game Settings',
+    playWord: 'Play Word', checkBtn: 'Check', bagLabel: 'Bag', difficultyLabel: 'Difficulty',
+    best: 'Best', streakLbl: 'Streak', gamesLbl: 'Games', newGameConfirm: 'Start a new game?',
     strategyLabel: 'Strategy', youLabel: 'You',
     diffEasy: 'Easy', diffMedium: 'Medium', diffHard: 'Hard', diffInsane: 'Insane',
     strat1: '1 · Varied', strat2: '2 · No clumping',
     chooseBlank: 'Choose a letter for the blank', cancel: 'Cancel',
-    statsTitle: '📊 Your Stats', close: 'Close', resetStats: 'Reset stats', playAgain: 'Play again', tapClose: 'tap to close',
+    statsTitle: 'Your Stats', close: 'Close', resetStats: 'Reset stats', playAgain: 'Play again', tapClose: 'tap to close',
     yourTurn: 'Your turn', gameOver: 'Game over',
     turnOf: (n) => `${n}’s turn`,
     thinking: (n) => `${n} is thinking…`,
@@ -135602,8 +135615,8 @@ const I18N = {
     newGameMsg: (d) => `New ${d} game. You go first! · Tip: tap any word on the board for its meaning.`,
     resumed: 'Welcome back — your game was restored.',
     tilesLeftLabel: 'Tiles left (bag + opponent)',
-    checkerTitle: 'Is it a word?',
-    checkerPlaceholder: 'Type letters to check…',
+    checkerTitle: 'Check a word',
+    checkerPlaceholder: 'Type letters…',
     checkerValid: (w) => `✓ ${w} — valid word (tap for meaning)`,
     checkerInvalid: (w) => `✗ ${w} — not in the dictionary`,
     played: (w, s, bingo, extra) => `✅ ${w} — ${s} pts${bingo ? ' · BINGO! +50' : ''}${extra}`,
@@ -135627,12 +135640,14 @@ const I18N = {
   },
   af: {
     play: 'Speel', recall: 'Trek terug', shuffle: 'Skommel', pass: 'Pas', swap: 'Ruil', swapConfirm: 'Bevestig ruil',
-    newGame: 'Nuwe spel', stats: '📊 Statistiek', bagLabel: 'Sak:', difficultyLabel: 'Moeilikheid',
+    newGame: 'Nuwe spel', stats: 'Statistiek', statsWord: 'Statistiek', gameSettings: 'Spelinstellings',
+    playWord: 'Speel Woord', checkBtn: 'Toets', bagLabel: 'Sak', difficultyLabel: 'Moeilikheid',
+    best: 'Beste', streakLbl: 'Streep', gamesLbl: 'Spele', newGameConfirm: "Begin 'n nuwe spel?",
     strategyLabel: 'Strategie', youLabel: 'Jy',
     diffEasy: 'Maklik', diffMedium: 'Middel', diffHard: 'Moeilik', diffInsane: 'Waansinnig',
     strat1: '1 · Gevarieerd', strat2: '2 · Geen klontering',
     chooseBlank: "Kies 'n letter vir die blanko", cancel: 'Kanselleer',
-    statsTitle: '📊 Jou Statistiek', close: 'Sluit', resetStats: 'Herstel statistiek', playAgain: 'Speel weer', tapClose: 'tik om te sluit',
+    statsTitle: 'Jou Statistiek', close: 'Sluit', resetStats: 'Herstel statistiek', playAgain: 'Speel weer', tapClose: 'tik om te sluit',
     yourTurn: 'Jou beurt', gameOver: 'Spel verby',
     turnOf: (n) => `${n} se beurt`,
     thinking: (n) => `${n} dink…`,
@@ -135641,8 +135656,8 @@ const I18N = {
     newGameMsg: (d) => `Nuwe ${d}-spel. Jy speel eerste!`,
     resumed: 'Welkom terug — jou spel is herstel.',
     tilesLeftLabel: 'Teëls oor (sak + teenstander)',
-    checkerTitle: "Is dit 'n woord?",
-    checkerPlaceholder: 'Tik letters om te toets…',
+    checkerTitle: "Toets 'n woord",
+    checkerPlaceholder: 'Tik letters…',
     checkerValid: (w) => `✓ ${w} — geldige woord`,
     checkerInvalid: (w) => `✗ ${w} — nie in die woordeboek nie`,
     played: (w, s, bingo, extra) => `✅ ${w} — ${s} pte${bingo ? ' · BINGO! +50' : ''}${extra}`,
@@ -135763,18 +135778,23 @@ class UI {
   initChecker() {
     const input = $('#word-check');
     const out = $('#word-check-result');
+    const btn = $('#word-check-btn');
     if (!input || !out) return;
-    input.addEventListener('input', () => {
+    const evaluate = () => {
       const w = (input.value || '').toUpperCase().replace(/[^A-Z]/g, '');
-      if (w.length < 2) { out.textContent = ''; out.className = 'word-check-result'; out._word = ''; return; }
+      if (w.length < 2) { out.textContent = ''; out.className = 'word-check-result'; out._word = ''; return null; }
       const ok = this.game.trie.has(w);
       out.textContent = ok ? this.L.checkerValid(w) : this.L.checkerInvalid(w);
       out.className = 'word-check-result ' + (ok ? 'valid' : 'invalid');
       out._word = ok ? w : '';
-    });
-    out.addEventListener('click', () => {
-      if (out._word && this.lang === 'en') this.showDefinitions([out._word]);
-    });
+      return ok ? w : null;
+    };
+    const define = () => { const w = evaluate(); if (w && this.lang === 'en') this.showDefinitions([w]); };
+    input.addEventListener('input', evaluate);
+    // Enter triggers Check, never Play Word.
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); define(); } });
+    if (btn) btn.onclick = define;
+    out.addEventListener('click', () => { if (out._word && this.lang === 'en') this.showDefinitions([out._word]); });
   }
 
   // Translate an engine "reason" string (English) for messages.
@@ -135891,6 +135911,7 @@ class UI {
     this._endRecorded = false;
     $('#btn-stats').onclick = () => this.openStats();
     $('#stats-close').onclick = () => $('#stats-modal').classList.add('hidden');
+    $('#stats-modal').addEventListener('click', (e) => { if (e.target.id === 'stats-modal') $('#stats-modal').classList.add('hidden'); });
     $('#stats-reset').onclick = () => {
       if (confirm(this.L.resetConfirm)) { this.stats = this.defaultStats(); this.saveStats(); this.openStats(); }
     };
@@ -135954,6 +135975,7 @@ class UI {
       [t.words, s.words],
     ];
     $('#stats-list').innerHTML = rows.map(([k, v]) => `<li><span>${k}</span><b>${v}</b></li>`).join('');
+    this.renderTilesLeft();
     $('#stats-modal').classList.remove('hidden');
   }
 
@@ -135967,13 +135989,18 @@ class UI {
     this.viewportEl = $('#board-viewport');
     this.rackEl = $('#rack');
     this.msgEl = $('#message');
-    this.logEl = $('#log');
     this.humanScoreEl = $('#human-score');
     this.aiScoreEl = $('#ai-score');
     this.aiLabelEl = $('#ai-label');
+    this.scoreYouEl = $('#score-you');
+    this.scoreBotEl = $('#score-bot');
+    this.stripBest = $('#strip-best');
+    this.stripStreak = $('#strip-streak');
+    this.stripGames = $('#strip-games');
     this.bagCountEl = $('#bag-count');
     this.tilesLeftEl = $('#tiles-left');
-    this.statStripEl = $('#stat-strip');
+    this.playBtn = $('#btn-play');
+    this.settingsModal = $('#settings-modal');
     this.blankModal = $('#blank-modal');
     this.endModal = $('#end-modal');
     this.defModal = $('#def-modal');
@@ -135990,6 +136017,9 @@ class UI {
     $('#btn-newgame').onclick = () => this.startNewGame();
     $('#difficulty').onchange = (e) => { this.pendingDifficulty = e.target.value; };
     $('#end-newgame').onclick = () => { this.endModal.classList.add('hidden'); this.startNewGame(); };
+    $('#btn-settings').onclick = () => this.settingsModal.classList.remove('hidden');
+    $('#settings-close').onclick = () => this.settingsModal.classList.add('hidden');
+    this.settingsModal.addEventListener('click', (e) => { if (e.target === this.settingsModal) this.settingsModal.classList.add('hidden'); });
 
     this.boardEl.addEventListener('click', (e) => {
       if (this._suppressBoardClick) { this._suppressBoardClick = false; return; }
@@ -136383,6 +136413,9 @@ class UI {
   }
 
   startNewGame() {
+    // Confirm mid-game (a fresh start abandons the current game).
+    const inProgress = !this.game.gameOver && this.game.grid.some((row) => row.some((c) => c));
+    if (inProgress && !confirm(this.L.newGameConfirm)) return;
     const diff = this.pendingDifficulty || this.game.difficulty;
     this.exitExchange();
     this.pending = [];
@@ -136391,6 +136424,7 @@ class UI {
     this._endRecorded = false;
     this.game.newGame(diff);
     this.endModal.classList.add('hidden');
+    if (this.settingsModal) this.settingsModal.classList.add('hidden');
     this.setMessage(this.L.newGameMsg(this.L.diffName[diff] || diff));
     this.render();
   }
@@ -136555,27 +136589,28 @@ class UI {
     this.aiScoreEl.textContent = this.game.scores.ai;
     this.aiLabelEl.textContent = this.aiName();
     this.bagCountEl.textContent = this.game.bag.length;
-    document.body.classList.toggle('your-turn', this.game.turn === 'human' && !this.busy && !this.game.gameOver);
+
+    const yourTurn = this.game.turn === 'human' && !this.busy && !this.game.gameOver;
+    const botTurn = (this.game.turn === 'ai' || this.busy) && !this.game.gameOver;
+    document.body.classList.toggle('your-turn', yourTurn);
+    if (this.scoreYouEl) this.scoreYouEl.classList.toggle('active', yourTurn);
+    if (this.scoreBotEl) this.scoreBotEl.classList.toggle('active', botTurn);
 
     const turnEl = $('#turn-indicator');
     if (this.game.gameOver) turnEl.textContent = this.L.gameOver;
     else if (this.busy) turnEl.textContent = this.L.turnOf(this.aiName());
     else turnEl.textContent = this.game.turn === 'human' ? this.L.yourTurn : this.L.turnOf(this.aiName());
 
-    // Always-visible stats strip.
+    // Compact stats strip in the header row.
     const s = this.stats;
-    if (s && this.statStripEl) {
-      const best = s.bestWord.score ? `${s.bestWord.word} (${s.bestWord.score})` : '—';
-      this.statStripEl.innerHTML = this.L.strip(best, s.streak, s.bestGame, s.games);
+    if (s) {
+      if (this.stripBest) this.stripBest.textContent = s.bestGame;
+      if (this.stripStreak) this.stripStreak.textContent = s.streak;
+      if (this.stripGames) this.stripGames.textContent = s.games;
     }
 
-    // Recent log (last 6 entries).
-    this.logEl.innerHTML = this.game.log.slice(-6).reverse().map((e) => {
-      const who = e.who === 'human' ? 'You' : 'Bot';
-      if (e.type === 'play') return `<li><b>${who}</b>: ${e.word} (+${e.score})</li>`;
-      if (e.type === 'exchange') return `<li><b>${who}</b>: swapped ${e.count}</li>`;
-      return `<li><b>${who}</b>: passed</li>`;
-    }).join('');
+    // Play Word is only available with tiles staged.
+    if (this.playBtn) this.playBtn.disabled = this.pending.length === 0 || this.busy || this.game.gameOver;
   }
 
   setMessage(text, thinking = false) {

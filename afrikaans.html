@@ -60,14 +60,14 @@ html, body {
   padding-top: calc(12px + env(safe-area-inset-top));
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 @media (min-width: 400px) { .app { padding-left: 16px; padding-right: 16px; } }
 
 /* ---------- Header ---------- */
 .wc-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .wc-brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.wc-wordmark { margin: 0; font-size: clamp(24px, 8vw, 34px); font-weight: 800; letter-spacing: -.5px; color: var(--text); white-space: nowrap; }
+.wc-wordmark { margin: 0; font-size: clamp(22px, 7vw, 30px); font-weight: 800; letter-spacing: -.5px; line-height: .9; color: var(--text); }
 .wc-logo { width: 40px; height: 27px; flex: none; }
 
 .wc-scores { display: flex; gap: 8px; flex: none; }
@@ -83,9 +83,9 @@ html, body {
 
 /* ---------- Turn / stats strip ---------- */
 .wc-status {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
-  padding: 8px 14px; font-size: 13px; flex-wrap: wrap;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  padding: 5px 12px; font-size: 13px;
 }
 .wc-status-turn { display: inline-flex; align-items: center; gap: 8px; font-weight: 750; text-transform: uppercase; letter-spacing: .5px; }
 .wc-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text2); }
@@ -113,9 +113,9 @@ body.your-turn .wc-status-turn { color: var(--active); }
   display: grid;
   grid-template-columns: repeat(15, 1fr);
   grid-template-rows: repeat(15, 1fr);
-  gap: 2px;
-  background: #000;      /* 2px black grid lines show through the gaps */
-  border: 2px solid #000; /* black outline around the outer edge too */
+  gap: 1px;
+  background: #000;      /* 1px black grid lines show through the gaps */
+  border: 1px solid #000; /* black outline around the outer edge too */
   border-radius: 7px;
   transform-origin: 0 0;
   will-change: transform;
@@ -209,8 +209,7 @@ body.dragging-tile { cursor: grabbing; }
 .message.thinking { font-style: italic; }
 
 /* ---------- Word checker ---------- */
-.wc-word-check { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 10px 12px; }
-.wc-word-check-title { font-size: 13px; font-weight: 750; letter-spacing: .8px; text-transform: uppercase; color: var(--text2); margin-bottom: 8px; }
+.wc-word-check { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 8px; }
 .wc-word-check-row { display: flex; gap: 8px; }
 .word-check {
   flex: 1; min-width: 0; background: #06140F; color: var(--text);
@@ -226,7 +225,8 @@ body.dragging-tile { cursor: grabbing; }
   font-family: inherit; font-size: 15px; font-weight: 750; letter-spacing: .5px; text-transform: uppercase; cursor: pointer;
 }
 .wc-btn--check:active { background: var(--primary2); }
-.word-check-result { min-height: 1.2em; text-align: center; font-size: .92rem; font-weight: 750; margin-top: 8px; }
+.word-check-result { text-align: center; font-size: .9rem; font-weight: 750; margin-top: 6px; }
+.word-check-result:empty { display: none; }
 .word-check-result.valid { color: var(--active); cursor: pointer; }
 .word-check-result.invalid { color: #f0857f; }
 
@@ -332,7 +332,7 @@ body.dragging-tile { cursor: grabbing; }
   <div id="app" class="app hidden">
     <header class="wc-header">
       <div class="wc-brand">
-        <h1 class="wc-wordmark">WordCobble</h1>
+        <h1 class="wc-wordmark">Word<br>Cobble</h1>
         <svg class="wc-logo" viewBox="0 0 44 30" aria-hidden="true">
           <ellipse cx="17" cy="18" rx="15" ry="11" fill="#173E2D" />
           <ellipse cx="28" cy="12" rx="14" ry="10" fill="#E9E1D1" />
@@ -352,11 +352,6 @@ body.dragging-tile { cursor: grabbing; }
 
     <div class="wc-status">
       <span class="wc-status-turn"><span class="wc-dot"></span><span id="turn-indicator">Your turn</span></span>
-      <span class="wc-status-stats">
-        <span class="wc-status-stat"><em data-i18n="best">Best</em><b id="strip-best">0</b></span>
-        <span class="wc-status-stat"><em data-i18n="streakLbl">Streak</em><b id="strip-streak">0</b></span>
-        <span class="wc-status-stat"><em data-i18n="gamesLbl">Games</em><b id="strip-games">0</b></span>
-      </span>
     </div>
 
     <main class="board-wrap">
@@ -370,11 +365,10 @@ body.dragging-tile { cursor: grabbing; }
     <div id="rack" class="rack"></div>
 
     <div class="wc-word-check">
-      <div class="wc-word-check-title" data-i18n="checkerTitle">Check a word</div>
       <div class="wc-word-check-row">
         <input id="word-check" class="word-check" type="text" autocomplete="off" autocorrect="off"
                autocapitalize="characters" spellcheck="false"
-               data-i18n-ph="checkerPlaceholder" placeholder="Type letters…" />
+               data-i18n-ph="checkerPlaceholder" placeholder="Check a word" />
         <button id="word-check-btn" class="wc-btn--check" data-i18n="checkBtn">Check</button>
       </div>
       <div id="word-check-result" class="word-check-result"></div>
@@ -135617,7 +135611,7 @@ const I18N = {
     resumed: 'Welcome back — your game was restored.',
     tilesLeftLabel: 'Tiles left (bag + opponent)',
     checkerTitle: 'Check a word',
-    checkerPlaceholder: 'Type letters…',
+    checkerPlaceholder: 'Check a word',
     checkerValid: (w) => `✓ ${w} — valid word (tap for meaning)`,
     checkerInvalid: (w) => `✗ ${w} — not in the dictionary`,
     played: (w, s, bingo, extra) => `✅ ${w} — ${s} pts${bingo ? ' · BINGO! +50' : ''}${extra}`,
@@ -135658,7 +135652,7 @@ const I18N = {
     resumed: 'Welkom terug — jou spel is herstel.',
     tilesLeftLabel: 'Teëls oor (sak + teenstander)',
     checkerTitle: "Toets 'n woord",
-    checkerPlaceholder: 'Tik letters…',
+    checkerPlaceholder: "Toets 'n woord",
     checkerValid: (w) => `✓ ${w} — geldige woord`,
     checkerInvalid: (w) => `✗ ${w} — nie in die woordeboek nie`,
     played: (w, s, bingo, extra) => `✅ ${w} — ${s} pte${bingo ? ' · BINGO! +50' : ''}${extra}`,

@@ -18,19 +18,19 @@
   --primary2: #31BC5C;
   --secicon: #9AB96C;
   /* Board */
-  --stone: #F1EBDD;
+  --stone: #dcdae4;
   --stone2: #E9E1D1;
-  --grout: #D4CCBC;
-  --frame: #173E2D;
-  --tw: #C61F4A;
-  --dw: #E34B23;
-  --tl: #0868BC;
-  --dl: #1597D0;
+  --grout: #ffffff;
+  --frame: #ffffff;
+  --tw: #e3158a;
+  --dw: #f29d83;
+  --tl: #1f74b8;
+  --dl: #a6d3ef;
   --premlabel: #FFFFFF;
   /* Tiles */
-  --tile: #F4E5C4;
-  --tile-edge: #D6BC87;
-  --ink: #0D3626;
+  --tile: #f3e7c4;
+  --tile-edge: #cdb98a;
+  --ink: #1c5a2e;
   --proposed: #35B966;
 }
 
@@ -104,24 +104,24 @@ body.your-turn .wc-status-turn { color: var(--active); }
   border-radius: 12px;
   position: relative;
   touch-action: none;
-  background: var(--frame);
-  border: 5px solid var(--frame);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, .45);
+  background: var(--grout);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .35);
 }
 .board {
   width: 100%; height: 100%;
   display: grid;
   grid-template-columns: repeat(15, 1fr);
   grid-template-rows: repeat(15, 1fr);
-  gap: 3px;
-  background: #000;      /* 3px black grid lines show through the gaps */
-  border: 3px solid #000; /* black outline around the outer edge too */
-  border-radius: 4px;
+  gap: 2px;
+  background: var(--grout);
+  padding: 4px;
+  border-radius: 8px;
   transform-origin: 0 0;
   will-change: transform;
 }
 .cell {
   background: var(--stone);
+  border-radius: 3px;
   display: flex; align-items: center; justify-content: center;
   position: relative;
   font-size: clamp(7px, 1.7vw, 11px);
@@ -137,24 +137,21 @@ body.your-turn .wc-status-turn { color: var(--active); }
 
 .tile {
   position: absolute; inset: 1px;
-  background: linear-gradient(180deg, #FBF1D6 0%, var(--tile) 55%, #EDDCB4 100%);
+  background: var(--tile);
   color: var(--ink);
-  border-radius: 4px;
+  border-radius: 3px;
   display: flex; align-items: center; justify-content: center;
-  font-weight: 750;
-  font-size: clamp(11px, 3vw, 19px);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .25), inset 0 -2px 0 var(--tile-edge);
+  font-weight: 700;
+  font-size: clamp(11px, 2.9vw, 18px);
+  box-shadow: inset 0 -2px 0 var(--tile-edge);
 }
-.tile sub {
-  position: absolute; right: 2px; bottom: 1px;
-  font-size: .5em; font-weight: 700; opacity: .85;
-}
-.tile.blank { color: #2f7a52; }
-.cell.pending .tile { box-shadow: 0 1px 2px rgba(0,0,0,.25), inset 0 0 0 2px var(--proposed); }
+.tile sub { font-size: .55em; font-weight: 600; margin-left: 1px; vertical-align: sub; }
+.tile.blank { color: #4f8a4a; }
+.cell.pending .tile { background: #fbf1cf; box-shadow: inset 0 -2px 0 #d9b85a; }
 .cell.pending.dragging-src .tile { opacity: .3; }
-.cell.last .tile { box-shadow: 0 1px 2px rgba(0,0,0,.25), inset 0 -2px 0 var(--tile-edge), 0 0 0 2px #f5d36b; }
+.cell.last .tile { box-shadow: inset 0 -2px 0 var(--tile-edge), 0 0 0 2px #f5d36b; }
 
-.cell.valid-word .tile { box-shadow: 0 1px 2px rgba(0,0,0,.25), inset 0 0 0 2px var(--proposed); }
+.cell.valid-word .tile { box-shadow: inset 0 -2px 0 #d9b85a, 0 0 0 2px var(--proposed); }
 .score-badge {
   position: absolute; right: -3px; bottom: -5px;
   min-width: 15px; height: 15px; padding: 0 3px; border-radius: 8px;
@@ -175,7 +172,7 @@ body.your-turn .wc-status-turn { color: var(--active); }
 .rack.recall-target { border-color: var(--dw); box-shadow: inset 0 0 0 2px var(--dw); }
 .rack-tile {
   aspect-ratio: 1 / 1.05;
-  background: linear-gradient(180deg, #FBF1D6 0%, var(--tile) 55%, #EDDCB4 100%);
+  background: var(--tile);
   color: var(--ink);
   border-radius: 7px;
   display: flex; align-items: center; justify-content: center;
@@ -195,7 +192,7 @@ body.your-turn .wc-status-turn { color: var(--active); }
 /* Floating drag tile */
 .tile-ghost {
   position: fixed; left: 0; top: 0; z-index: 200; pointer-events: none;
-  background: linear-gradient(180deg, #FBF1D6, var(--tile)); color: var(--ink);
+  background: var(--tile); color: var(--ink);
   border-radius: 7px; display: flex; align-items: center; justify-content: center;
   font-weight: 750; font-size: clamp(17px, 5.5vw, 28px);
   box-shadow: 0 8px 18px rgba(0,0,0,.55);
